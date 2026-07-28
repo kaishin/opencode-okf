@@ -8,16 +8,17 @@ The authoring commands make OpenCode inspect repository evidence before it write
 
 - `/okf-create` inspects a repository and creates an evidence-backed OKF bundle.
 - `/okf-update` reconciles an existing bundle with current source material.
+- `/okf-capture` distills the current coding session into a dated OKF log entry.
 - `/okf-validate` reports conformance errors and quality warnings, with opt-in fixes.
 - `/okf-diff` lists files changed since a git ref to scope OKF bundle work.
-- `okf_validate` and `okf_diff` give agents deterministic validation and git diff tools.
+- `okf_validate`, `okf_capture`, and `okf_diff` give agents deterministic OKF and git-diff tools.
 - A command hook supplies the exact UTC timestamp to OKF workflows.
 - A debounced file-event hook warns when edits make the bundle nonconformant.
 - Existing commands and producer-defined OKF frontmatter are preserved.
 
 ## Install
 
-Add the plugin to `opencode.json`:
+Install the published plugin by adding it to `opencode.json`:
 
 ```json
 {
@@ -49,6 +50,13 @@ Refresh an existing bundle:
 
 ```text
 /okf-update review schema migrations and dashboard changes since the last update
+```
+
+Capture important decisions and unresolved questions from the current session:
+
+```text
+/okf-capture
+/okf-capture focus on architecture decisions and follow-up questions
 ```
 
 Validate without editing:

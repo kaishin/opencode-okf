@@ -35,6 +35,18 @@ Update focus or additional guidance: $ARGUMENTS
 When finished, summarize every file created, changed, or removed, list unresolved questions, and report the final validator result.`
 }
 
+export function capturePrompt(bundleDirectory: string): string {
+  return `Capture the durable knowledge from the current coding session in \`${bundleDirectory}/\`.
+
+Review the conversation and the work completed in the current worktree. Extract only important, evidence-backed decisions, implementation facts, tradeoffs, constraints, meaningful changes, and unresolved questions. Do not copy routine chatter, credentials, secrets, or unsupported assumptions. Distinguish decisions that were actually made from ideas that were rejected or left open.
+
+Call the \`okf_capture\` tool with a concise title, a useful summary, and separate lists for decisions, changes, and open questions. The tool appends a dated entry to the bundle's root \`log.md\`. Use the user's arguments as additional focus:
+
+$ARGUMENTS
+
+When finished, run the \`okf_validate\` tool and report the captured file, unresolved questions, and final validator result.`
+}
+
 export function diffPrompt(bundleDirectory: string): string {
   return `List the files changed since a git ref by running the \`okf_diff\` tool, then report the results clearly.
 

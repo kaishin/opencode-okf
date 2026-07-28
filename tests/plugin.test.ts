@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { execFile } from "node:child_process"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { OKFPlugin } from "../src/index.js"
@@ -45,6 +45,7 @@ describe("OKFPlugin", () => {
 
     expect(config.command["okf-create"]).toBe(custom)
     expect(config.command["okf-update"]?.template).toContain("Update the existing OKF bundle")
+    expect(config.command["okf-capture"]?.template).toContain("okf_capture")
     expect(config.command["okf-validate"]?.template).toContain("okf_validate")
     expect(config.command["okf-diff"]?.template).toContain("okf_diff")
   })
@@ -121,6 +122,25 @@ describe("OKFPlugin", () => {
       expect(result.output).toContain("untracked  changed.md")
       expect(result.metadata?.base).toBe("HEAD")
     }
+  })
+
+  test("exposes a working session capture tool", async () => {
+    const { root, input } = await makeContext()
+    const hooks = await OKFPlugin(input as never)
+
+    const result = await hooks.tool?.okf_capture?.execute(
+      {
+        title: "Session decision",
+        summary: "Captured the important session outcome.",
+        decisions: ["Keep the bundle log newest first."],
+      },
+      { worktree: root, directory: root } as never,
+    )
+    const log = await readFile(join(root, "okf", "log.md"), "utf8")
+
+    expect(typeof result).toBe("object")
+    if (typeof result === "object") expect(result.title).toBe("OKF session captured")
+    expect(log).toContain("Keep the bundle log newest first.")
   })
 
   test("validates worktree-relative file events when started in a subdirectory", async () => {

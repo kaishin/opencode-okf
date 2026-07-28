@@ -1,7 +1,8 @@
-import { resolve } from "node:path"
+import { relative, resolve, sep } from "node:path"
 import { type Plugin, tool } from "@opencode-ai/plugin"
+import { captureSession, formatCaptureReport } from "./capture.js"
 import { diffSources, formatDiffReport } from "./diff.js"
-import { createPrompt, diffPrompt, updatePrompt, validatePrompt } from "./prompts.js"
+import { capturePrompt, createPrompt, diffPrompt, updatePrompt, validatePrompt } from "./prompts.js"
 import {
   formatValidationReport,
   isPathInside,
@@ -31,7 +32,7 @@ function readOptions(options: Record<string, unknown> | undefined): Required<OKF
 export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) => {
   const options = readOptions(rawOptions)
   const configuredRoot = resolveBundlePath(worktree, options.bundleDirectory)
-  const commandNames = new Set(["okf-create", "okf-update", "okf-validate", "okf-diff"])
+  const commandNames = new Set(["okf-create", "okf-update", "okf-capture", "okf-validate", "okf-diff"])
   let validationTimer: ReturnType<typeof setTimeout> | undefined
   let lastErrorSignature = ""
 
@@ -75,6 +76,10 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
       config.command["okf-update"] ??= {
         description: "Update an existing OKF bundle from repository evidence",
         template: updatePrompt(options.bundleDirectory),
+      }
+      config.command["okf-capture"] ??= {
+        description: "Capture durable knowledge from the current coding session",
+        template: capturePrompt(options.bundleDirectory),
       }
       config.command["okf-validate"] ??= {
         description: "Validate an OKF bundle and optionally fix it",
@@ -120,6 +125,54 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
               scope: report.scope,
               files: report.changedFiles.length,
               notARepository: report.notARepository,
+            },
+          }
+        },
+      }),
+      okf_capture: tool({
+        description:
+          "Capture durable knowledge from the current coding session as a dated entry in the OKF bundle's root log.md.",
+        args: {
+          title: tool.schema.string().optional().describe("Short title for this session capture."),
+          summary: tool.schema.string().describe("Concise summary of the session's important outcome."),
+          decisions: tool.schema
+            .array(tool.schema.string())
+            .optional()
+            .describe("Decisions explicitly made during the session."),
+          changes: tool.schema
+            .array(tool.schema.string())
+            .optional()
+            .describe("Meaningful implementation or workflow changes from the session."),
+          questions: tool.schema
+            .array(tool.schema.string())
+            .optional()
+            .describe("Important unresolved questions or follow-ups."),
+          path: tool.schema
+            .string()
+            .optional()
+            .describe(`Bundle path relative to the worktree. Defaults to ${options.bundleDirectory}.`),
+        },
+        async execute(args, context) {
+          const root = resolveBundlePath(context.worktree, args.path ?? options.bundleDirectory)
+          const report = await captureSession(root, {
+            title: args.title,
+            summary: args.summary,
+            decisions: args.decisions,
+            changes: args.changes,
+            questions: args.questions,
+          })
+          const file = relative(context.worktree, report.file).split(sep).join("/")
+          const output = formatCaptureReport({ ...report, file })
+          return {
+            title: report.validation.valid ? "OKF session captured" : "OKF session captured with errors",
+            output,
+            metadata: {
+              date: report.date,
+              file,
+              created: report.created,
+              valid: report.validation.valid,
+              errors: report.validation.errors.length,
+              warnings: report.validation.warnings.length,
             },
           }
         },
@@ -176,6 +229,8 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
 }) satisfies Plugin
 
 export default OKFPlugin
+export { captureSession, formatCaptureReport } from "./capture.js"
+export type { CaptureOptions, CaptureReport } from "./capture.js"
 export { diffSources, formatDiffReport } from "./diff.js"
 export type { ChangedFile, DiffOptions, DiffReport, FileStatus } from "./diff.js"
 export { formatValidationReport, resolveBundlePath, validateBundle } from "./validator.js"
