@@ -9,7 +9,8 @@ The authoring commands make OpenCode inspect repository evidence before it write
 - `/okf-create` inspects a repository and creates an evidence-backed OKF bundle.
 - `/okf-update` reconciles an existing bundle with current source material.
 - `/okf-validate` reports conformance errors and quality warnings, with opt-in fixes.
-- `okf_validate` gives agents a deterministic validation tool.
+- `/okf-diff` lists files changed since a git ref to scope OKF bundle work.
+- `okf_validate` and `okf_diff` give agents deterministic validation and git diff tools.
 - A command hook supplies the exact UTC timestamp to OKF workflows.
 - A debounced file-event hook warns when edits make the bundle nonconformant.
 - Existing commands and producer-defined OKF frontmatter are preserved.
@@ -54,6 +55,13 @@ Validate without editing:
 
 ```text
 /okf-validate
+```
+
+List uncommitted changes, or changes against another ref, before updating a bundle:
+
+```text
+/okf-diff
+/okf-diff origin/main
 ```
 
 Ask OpenCode to repair format problems after validation:

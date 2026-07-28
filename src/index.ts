@@ -1,6 +1,7 @@
 import { resolve } from "node:path"
 import { type Plugin, tool } from "@opencode-ai/plugin"
-import { createPrompt, updatePrompt, validatePrompt } from "./prompts.js"
+import { diffSources, formatDiffReport } from "./diff.js"
+import { createPrompt, diffPrompt, updatePrompt, validatePrompt } from "./prompts.js"
 import {
   formatValidationReport,
   isPathInside,
@@ -30,7 +31,7 @@ function readOptions(options: Record<string, unknown> | undefined): Required<OKF
 export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) => {
   const options = readOptions(rawOptions)
   const configuredRoot = resolveBundlePath(worktree, options.bundleDirectory)
-  const commandNames = new Set(["okf-create", "okf-update", "okf-validate"])
+  const commandNames = new Set(["okf-create", "okf-update", "okf-validate", "okf-diff"])
   let validationTimer: ReturnType<typeof setTimeout> | undefined
   let lastErrorSignature = ""
 
@@ -79,9 +80,50 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
         description: "Validate an OKF bundle and optionally fix it",
         template: validatePrompt(options.bundleDirectory),
       }
+      config.command["okf-diff"] ??= {
+        description: "List files changed since a git ref to scope OKF bundle work",
+        template: diffPrompt(options.bundleDirectory),
+      }
     },
 
     tool: {
+      okf_diff: tool({
+        description:
+          "List files changed since a git ref (default HEAD) so OKF bundle work can be scoped to uncommitted or recent changes.",
+        args: {
+          base: tool.schema
+            .string()
+            .optional()
+            .describe("Git ref to diff against. Defaults to HEAD. Use origin/main, a SHA, or a tag for a wider window."),
+          path: tool.schema
+            .string()
+            .optional()
+            .describe("Subdirectory to scope the diff to, relative to the worktree."),
+          includeUntracked: tool.schema
+            .boolean()
+            .optional()
+            .describe("Include files not yet tracked by git. Defaults to true."),
+        },
+        async execute(args, context) {
+          const report = await diffSources(context.worktree, {
+            base: args.base,
+            path: args.path,
+            includeUntracked: args.includeUntracked,
+          })
+          return {
+            title: report.notARepository
+              ? "Not a git repository"
+              : `${report.changedFiles.length} changed file(s) vs ${report.base}`,
+            output: formatDiffReport(report),
+            metadata: {
+              base: report.base,
+              scope: report.scope,
+              files: report.changedFiles.length,
+              notARepository: report.notARepository,
+            },
+          }
+        },
+      }),
       okf_validate: tool({
         description:
           "Validate an Open Knowledge Format v0.1 bundle. Reports conformance errors and non-blocking quality or broken-link warnings.",
@@ -134,5 +176,7 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
 }) satisfies Plugin
 
 export default OKFPlugin
+export { diffSources, formatDiffReport } from "./diff.js"
+export type { ChangedFile, DiffOptions, DiffReport, FileStatus } from "./diff.js"
 export { formatValidationReport, resolveBundlePath, validateBundle } from "./validator.js"
 export type { ValidationIssue, ValidationReport, ValidationSeverity } from "./validator.js"

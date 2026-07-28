@@ -35,6 +35,16 @@ Update focus or additional guidance: $ARGUMENTS
 When finished, summarize every file created, changed, or removed, list unresolved questions, and report the final validator result.`
 }
 
+export function diffPrompt(bundleDirectory: string): string {
+  return `List the files changed since a git ref by running the \`okf_diff\` tool, then report the results clearly.
+
+Arguments: $ARGUMENTS
+
+Interpret the arguments as an optional git ref to diff against (for example \`origin/main\`, a SHA, or a tag). Default to HEAD, which covers uncommitted changes. Scope to a subdirectory only if the arguments name one.
+
+Use the changed files to scope OKF work in \`${bundleDirectory}/\`: if the arguments ask for a bundle update, restrict the update to knowledge supported by the changed files and follow the OKF authoring rules. Otherwise keep this a read-only report and suggest next steps, such as running \`/okf-update\` scoped to relevant changes.`
+}
+
 export function validatePrompt(bundleDirectory: string): string {
   return `Validate the OKF bundle in \`${bundleDirectory}/\` with the \`okf_validate\` tool and report errors and warnings clearly.
 

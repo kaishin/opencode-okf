@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { execFile } from "node:child_process"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -45,6 +46,7 @@ describe("OKFPlugin", () => {
     expect(config.command["okf-create"]).toBe(custom)
     expect(config.command["okf-update"]?.template).toContain("Update the existing OKF bundle")
     expect(config.command["okf-validate"]?.template).toContain("okf_validate")
+    expect(config.command["okf-diff"]?.template).toContain("okf_diff")
   })
 
   test("uses the configured bundle directory in commands", async () => {
@@ -92,6 +94,32 @@ describe("OKFPlugin", () => {
       expect(result.title).toBe("OKF validation passed")
       expect(result.output).toContain("0 error(s)")
       expect(result.metadata?.warnings).toBe(4)
+    }
+  })
+
+  test("exposes a working diff tool", async () => {
+    const { root, input } = await makeContext()
+    const git = (args: string[]) =>
+      new Promise<void>((resolvePromise, reject) => {
+        execFile("git", args, { cwd: root }, (error) => (error ? reject(error) : resolvePromise()))
+      })
+    await git(["init", "-q", "-b", "main"])
+    await git(["config", "user.email", "ci@example.com"])
+    await git(["config", "user.name", "CI"])
+    await git(["commit", "--allow-empty", "-q", "-m", "initial"])
+    await writeFile(join(root, "changed.md"), "# Changed\n")
+    const hooks = await OKFPlugin(input as never)
+
+    const result = await hooks.tool?.okf_diff?.execute(
+      {},
+      { worktree: root, directory: root } as never,
+    )
+
+    expect(typeof result).toBe("object")
+    if (typeof result === "object") {
+      expect(result.title).toContain("1 changed file(s)")
+      expect(result.output).toContain("untracked  changed.md")
+      expect(result.metadata?.base).toBe("HEAD")
     }
   })
 
