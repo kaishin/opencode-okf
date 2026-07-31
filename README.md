@@ -10,6 +10,7 @@ The authoring commands make OpenCode inspect repository evidence before it write
 - `/okf-update` reconciles an existing bundle with current source material.
 - `/okf-capture` distills the current coding session into a dated OKF log entry.
 - `/okf-validate` reports conformance errors and quality warnings, with opt-in fixes.
+- `/okf-compact` prunes log files down to durable, future-relevant knowledge.
 - `/okf-diff` lists files changed since a git ref to scope OKF bundle work.
 - `okf_validate`, `okf_capture`, and `okf_diff` give agents deterministic OKF and git-diff tools.
 - A command hook supplies the exact UTC timestamp to OKF workflows.
@@ -64,6 +65,16 @@ Validate without editing:
 ```text
 /okf-validate
 ```
+
+Compact accumulated log entries, keeping only what remains useful:
+
+```text
+/okf-compact
+/okf-compact aggressive
+/okf-compact conservative keep the migration decisions, drop everything before June
+```
+
+The first argument sets the aggressiveness: `conservative` (remove only clearly superseded or duplicated entries), `balanced` (default; also drop chatter and transient details), or `aggressive` (keep only standing decisions, constraints, and open questions, summarizing older groups).
 
 List uncommitted changes, or changes against another ref, before updating a bundle:
 

@@ -2,7 +2,7 @@ import { relative, resolve, sep } from "node:path"
 import { type Plugin, tool } from "@opencode-ai/plugin"
 import { captureSession, formatCaptureReport } from "./capture.js"
 import { diffSources, formatDiffReport } from "./diff.js"
-import { capturePrompt, createPrompt, diffPrompt, updatePrompt, validatePrompt } from "./prompts.js"
+import { capturePrompt, compactPrompt, createPrompt, diffPrompt, updatePrompt, validatePrompt } from "./prompts.js"
 import {
   formatValidationReport,
   isPathInside,
@@ -32,7 +32,7 @@ function readOptions(options: Record<string, unknown> | undefined): Required<OKF
 export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) => {
   const options = readOptions(rawOptions)
   const configuredRoot = resolveBundlePath(worktree, options.bundleDirectory)
-  const commandNames = new Set(["okf-create", "okf-update", "okf-capture", "okf-validate", "okf-diff"])
+  const commandNames = new Set(["okf-create", "okf-update", "okf-capture", "okf-validate", "okf-diff", "okf-compact"])
   let validationTimer: ReturnType<typeof setTimeout> | undefined
   let lastErrorSignature = ""
 
@@ -84,6 +84,10 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
       config.command["okf-validate"] ??= {
         description: "Validate an OKF bundle and optionally fix it",
         template: validatePrompt(options.bundleDirectory),
+      }
+      config.command["okf-compact"] ??= {
+        description: "Compact OKF log files, keeping only durable, future-relevant knowledge",
+        template: compactPrompt(options.bundleDirectory),
       }
       config.command["okf-diff"] ??= {
         description: "List files changed since a git ref to scope OKF bundle work",

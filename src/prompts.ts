@@ -47,6 +47,28 @@ $ARGUMENTS
 When finished, run the \`okf_validate\` tool and report the captured file, unresolved questions, and final validator result.`
 }
 
+export function compactPrompt(bundleDirectory: string): string {
+  return `Compact the \`log.md\` files in the OKF bundle at \`${bundleDirectory}/\` so they keep only durable, future-relevant knowledge.
+
+Read every \`log.md\` in the bundle. For each dated group and list entry, decide whether it still helps a future reader or agent:
+
+- Keep decisions, constraints, tradeoffs, and their rationale; unresolved questions that remain open; pointers to sources of truth; and facts that concept documents do not already cover.
+- Promote durable facts that belong in a concept document into the nearest concept file first, then remove them from the log.
+- Drop entries that are superseded by newer entries, fully captured in concept documents, routine progress chatter, transient debugging details, or references to work that no longer exists.
+
+Merge duplicate entries, keep dates newest first in \`YYYY-MM-DD\` form, and preserve the log's list formatting and any producer-defined frontmatter. Never delete an unresolved question that is still open, and never invent facts to replace removed ones. If entries were promoted into concept files, refresh the affected \`index.md\` links as needed.
+
+Interpret the arguments as the compaction aggressiveness, defaulting to \`balanced\` when none is given:
+
+- \`conservative\`: remove only entries that are clearly superseded or already fully captured in concept documents. When in doubt, keep the entry.
+- \`balanced\`: also drop routine progress chatter, transient debugging details, and duplicates, while keeping decisions, rationale, constraints, and open questions.
+- \`aggressive\`: keep only what is still directly useful for future work. Collapse older date groups into brief summaries, drop resolved questions and historical context, and retain just open questions, standing decisions, and constraints.
+
+Any remaining arguments after the aggressiveness level are additional focus or guidance: $ARGUMENTS
+
+When finished, run the \`okf_validate\` tool and report what was kept, promoted, and removed, plus the final validator result.`
+}
+
 export function diffPrompt(bundleDirectory: string): string {
   return `List the files changed since a git ref by running the \`okf_diff\` tool, then report the results clearly.
 
