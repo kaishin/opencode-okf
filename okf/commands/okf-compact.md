@@ -1,40 +1,47 @@
 ---
 type: Command
 title: /okf-compact
-description: Compact OKF log files, keeping only durable, future-relevant knowledge.
+description: Compact OKF logs, or the whole bundle with hard arg all.
 tags: [command, log, maintenance]
-timestamp: 2026-08-03T09:47:54Z
+timestamp: 2026-08-05T00:00:00Z
 ---
 
 # Registration
 
 - Name: `okf-compact`
 - Template: `compactPrompt(bundleDirectory)`
-- Description: "Compact OKF log files, keeping only durable, future-relevant knowledge"
+- Description: "Compact OKF logs, or the whole bundle with `all`"
+
+# Hard arguments
+
+| Invocation | Scope |
+| --- | --- |
+| `/okf-compact` | **logs** only |
+| `/okf-compact all` | **all** — concepts, indexes, and logs |
+| `/okf-compact all aggressive` | whole bundle, aggressive |
+| `/okf-compact balanced focus…` | logs only, balanced + focus |
+
+Optional aggressiveness after scope: `conservative` | `balanced` (default) | `aggressive`. Remaining tokens are focus.
 
 # Behavior (prompt-only)
 
-No dedicated deterministic tool today. Whether one should exist is open: judgment-heavy steps (what is durable, what is superseded, how to rewrite summaries) likely stay model-led; candidates for determinism include parsing aggressiveness args, walking every `log.md`, validating structure after edits, and applying purely mechanical keep/drop rules if they are ever defined.
+## logs (default)
 
-The model reads every `log.md` in the bundle and:
+- Keep durable decisions, constraints, open questions, source pointers
+- Promote facts into concepts when appropriate, then drop from the log
+- Drop superseded, duplicated, chatter, transient debugging
 
-- Keeps decisions, constraints, tradeoffs, open questions, pointers to sources of truth, and facts not already in concept docs
-- Promotes durable facts into concept files when appropriate, then removes them from the log
-- Drops superseded, duplicated, chatter, transient debugging, or obsolete references
-- Preserves newest-first dates and list formatting
-- Never deletes still-open questions; never invents replacement facts
+## all
 
-# Aggressiveness
+Everything in **logs**, plus:
 
-First argument (default `balanced`):
+- Merge duplicate/near-duplicate concepts; retarget links
+- Remove clearly obsolete or empty concepts (respect aggressiveness)
+- Tighten verbose concept prose without inventing or dropping meaning
+- Refresh every `index.md` to match remaining concepts
+- Normalize frontmatter; never invent `resource` URIs
 
-| Level | Effect |
-| --- | --- |
-| `conservative` | Remove only clearly superseded or fully captured entries |
-| `balanced` | Also drop chatter, transient details, duplicates |
-| `aggressive` | Keep standing decisions, constraints, open questions; summarize older groups |
-
-Remaining arguments are additional focus.
+Never delete still-open questions; never invent replacement facts.
 
 # Related
 

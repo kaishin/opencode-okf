@@ -17,7 +17,8 @@ timestamp: 2026-08-05T00:00:00Z
 | `initPrompt(bundleDirectory)` | `/okf-init` |
 | `updatePrompt(bundleDirectory, mode?, rest?)` | `/okf-update` |
 | `parseUpdateArgs(args)` | hard mode parser for update |
-| `compactPrompt(bundleDirectory)` | `/okf-compact` |
+| `compactPrompt(bundleDirectory, scope?, aggressiveness?, rest?)` | `/okf-compact` |
+| `parseCompactArgs(args)` | hard scope/aggressiveness parser |
 | `validatePrompt(bundleDirectory)` | `/okf-validate` |
 
 # Update hard modes
@@ -45,13 +46,18 @@ Embedded in init/update prompts:
 
 Templates include `$ARGUMENTS` for user-supplied text. Plugin hook appends runtime UTC time and configured bundle directory at execute time.
 
-# Compact aggressiveness (prompt-only)
+# Compact args
 
-Interpreted from arguments; default `balanced`:
+| Args | Scope |
+| --- | --- |
+| *(none)* or aggressiveness/focus only | **logs** |
+| `all` *[aggressiveness] [focus…]* | **all** — concepts, indexes, logs |
+
+Aggressiveness (default `balanced`):
 
 - `conservative` — remove only clearly superseded or fully captured entries
-- `balanced` — also drop chatter, transient details, duplicates
-- `aggressive` — keep standing decisions, constraints, open questions; summarize older groups
+- `balanced` — also drop chatter, transient details, duplicates, redundant prose
+- `aggressive` — keep only what is still directly useful; merge/remove low-value concepts
 
 # Related
 

@@ -9,7 +9,7 @@ The authoring commands make OpenCode inspect repository evidence before it write
 - `/okf-init` inspects a repository and creates an evidence-backed OKF bundle.
 - `/okf-update [session|diff]` updates concepts and indexes from full repo (no arg), git diff, or the current session.
 - `/okf-validate` reports conformance errors and quality warnings, with opt-in fixes.
-- `/okf-compact` prunes log files down to durable, future-relevant knowledge.
+- `/okf-compact [all]` prunes logs, or the whole bundle (concepts, indexes, logs) with `all`.
 - `okf_validate`, `okf_capture`, and `okf_diff` give agents deterministic OKF and git-diff tools.
 - A command hook supplies the exact UTC timestamp to OKF workflows.
 - A debounced file-event hook warns when edits make the bundle nonconformant.
@@ -108,16 +108,22 @@ Validate without editing:
 /okf-validate
 ```
 
-Compact accumulated log entries, keeping only what remains useful:
+Compact accumulated knowledge, keeping only what remains useful:
 
 ```text
 /okf-compact
 /okf-compact aggressive
+/okf-compact all
+/okf-compact all aggressive
 /okf-compact conservative keep the migration decisions, drop everything before June
 ```
 
-The first argument sets the aggressiveness: `conservative` (remove only clearly superseded or duplicated entries), `balanced` (default; also drop chatter and transient details), or `aggressive` (keep only standing decisions, constraints, and open questions, summarizing older groups).
+| Args | Scope |
+| --- | --- |
+| *(none)* or aggressiveness/focus only | **logs** only |
+| `all` *[aggressiveness] [focus…]* | **all** — concepts, indexes, and logs |
 
+Optional aggressiveness: `conservative` | `balanced` (default) | `aggressive`.
 Ask OpenCode to repair format problems after validation:
 
 ```text

@@ -97,26 +97,117 @@ ${AUTHORING_RULES}
 When finished, summarize every file created, changed, or removed, list unresolved questions, and report the final validator result.`
 }
 
-export function compactPrompt(bundleDirectory: string): string {
-  return `Compact the \`log.md\` files in the OKF bundle at \`${bundleDirectory}/\` so they keep only durable, future-relevant knowledge.
+export type CompactScope = "logs" | "all"
+export type CompactAggressiveness = "conservative" | "balanced" | "aggressive"
 
-Read every \`log.md\` in the bundle. For each dated group and list entry, decide whether it still helps a future reader or agent:
+const AGGRESSIVENESS_LEVELS = new Set<string>(["conservative", "balanced", "aggressive"])
+
+/** Parse compact args: optional hard \`all\`, then optional aggressiveness, then focus. */
+export function parseCompactArgs(args: string): {
+  scope: CompactScope
+  aggressiveness: CompactAggressiveness
+  rest: string
+} {
+  const tokens = args.trim().split(/\s+/).filter(Boolean)
+  let scope: CompactScope = "logs"
+  if (tokens[0] === "all") {
+    scope = "all"
+    tokens.shift()
+  }
+  let aggressiveness: CompactAggressiveness = "balanced"
+  if (tokens[0] && AGGRESSIVENESS_LEVELS.has(tokens[0])) {
+    aggressiveness = tokens.shift() as CompactAggressiveness
+  }
+  return { scope, aggressiveness, rest: tokens.join(" ") }
+}
+
+const LOG_COMPACT_STEPS = `For each \`log.md\`, and for each dated group and list entry, decide whether it still helps a future reader or agent:
 
 - Keep decisions, constraints, tradeoffs, and their rationale; unresolved questions that remain open; pointers to sources of truth; and facts that concept documents do not already cover.
 - Promote durable facts that belong in a concept document into the nearest concept file first, then remove them from the log.
 - Drop entries that are superseded by newer entries, fully captured in concept documents, routine progress chatter, transient debugging details, or references to work that no longer exists.
 
-Merge duplicate entries, keep dates newest first in \`YYYY-MM-DD\` form, and preserve the log's list formatting and any producer-defined frontmatter. Never delete an unresolved question that is still open, and never invent facts to replace removed ones. If entries were promoted into concept files, refresh the affected \`index.md\` links as needed.
+Merge duplicate entries, keep dates newest first in \`YYYY-MM-DD\` form, and preserve the log's list formatting and any producer-defined frontmatter. Never delete an unresolved question that is still open, and never invent facts to replace removed ones. If entries were promoted into concept files, refresh the affected \`index.md\` links as needed.`
 
-Interpret the arguments as the compaction aggressiveness, defaulting to \`balanced\` when none is given:
+const ALL_COMPACT_STEPS = `Walk the **entire** bundle — concept files, \`index.md\` files, and \`log.md\` files — not just logs.
 
-- \`conservative\`: remove only entries that are clearly superseded or already fully captured in concept documents. When in doubt, keep the entry.
-- \`balanced\`: also drop routine progress chatter, transient debugging details, and duplicates, while keeping decisions, rationale, constraints, and open questions.
-- \`aggressive\`: keep only what is still directly useful for future work. Collapse older date groups into brief summaries, drop resolved questions and historical context, and retain just open questions, standing decisions, and constraints.
+Concepts:
 
-Any remaining arguments after the aggressiveness level are additional focus or guidance: $ARGUMENTS
+- Merge duplicate or near-duplicate concepts; keep one canonical file and retarget links.
+- Remove concepts that are empty, fully superseded, or no longer supported by any evidence in the repo (only when clearly obsolete — when in doubt under \`conservative\`, keep).
+- Tighten verbose prose: drop repetition and filler while preserving meaning, sources, formulas, caveats, and related links.
+- Normalize frontmatter (required \`type\`; recommended \`title\`, \`description\`, \`tags\`, ISO 8601 UTC \`timestamp\`); never invent a \`resource\` URI.
+- Do not invent business rules or facts. Prefer smallest evidence-backed edits.
 
-When finished, run the \`okf_validate\` tool and report what was kept, promoted, and removed, plus the final validator result.`
+Indexes:
+
+- Rebuild or refresh every \`index.md\` so listings match remaining concepts.
+- Drop dead links; keep progressive-disclosure structure useful for humans and agents.
+
+Logs:
+
+${LOG_COMPACT_STEPS}`
+
+const AGGRESSIVENESS_BLOCK = `Aggressiveness levels:
+
+- \`conservative\`: remove only what is clearly superseded, duplicated, or fully captured elsewhere. When in doubt, keep.
+- \`balanced\`: also drop chatter, transient details, redundant concept prose, and obvious duplicates, while keeping decisions, rationale, constraints, and open questions.
+- \`aggressive\`: keep only what is still directly useful. Collapse older log groups into brief summaries; drop resolved questions and historical context; merge or remove low-value concepts; tighten indexes to the essentials.`
+
+function compactScopeBlock(scope: CompactScope): string {
+  if (scope === "all") {
+    return `Scope: **all** (hard arg \`all\`) — compact the whole bundle.
+
+${ALL_COMPACT_STEPS}`
+  }
+  return `Scope: **logs** (default) — compact only \`log.md\` files.
+
+Read every \`log.md\` in the bundle.
+
+${LOG_COMPACT_STEPS}`
+}
+
+/** When scope/aggressiveness are set (Pi), embed them. When omitted, model parses $ARGUMENTS. */
+export function compactPrompt(
+  bundleDirectory: string,
+  scope?: CompactScope,
+  aggressiveness?: CompactAggressiveness,
+  rest = "",
+): string {
+  if (scope && aggressiveness) {
+    return `Compact the OKF bundle at \`${bundleDirectory}/\`.
+
+${compactScopeBlock(scope)}
+
+Apply the \`${aggressiveness}\` aggressiveness level:
+
+${AGGRESSIVENESS_BLOCK}
+
+${rest ? `Additional focus or guidance: ${rest}\n\n` : ""}When finished, run the \`okf_validate\` tool and report what was kept, merged, promoted, removed, and rewritten, plus the final validator result.`
+  }
+
+  return `Compact the OKF bundle at \`${bundleDirectory}/\`.
+
+Hard scope — first token of $ARGUMENTS:
+
+| Args | Scope |
+| --- | --- |
+| *(none)* or aggressiveness/focus only | **logs** — only \`log.md\` files |
+| \`all\` *[aggressiveness] [focus…]* | **all** — concepts, indexes, and logs |
+
+Then optional aggressiveness (\`conservative\` | \`balanced\` | \`aggressive\`, default \`balanced\`), then free-form focus.
+
+Arguments: $ARGUMENTS
+
+${compactScopeBlock("logs")}
+
+When the first arg is \`all\`, instead:
+
+${ALL_COMPACT_STEPS}
+
+${AGGRESSIVENESS_BLOCK}
+
+When finished, run the \`okf_validate\` tool and report what was kept, merged, promoted, removed, and rewritten, plus the final validator result.`
 }
 
 export function validatePrompt(bundleDirectory: string): string {

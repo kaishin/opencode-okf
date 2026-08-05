@@ -82,7 +82,7 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
         template: validatePrompt(options.bundleDirectory),
       }
       config.command["okf-compact"] ??= {
-        description: "Compact OKF log files, keeping only durable, future-relevant knowledge",
+        description: "Compact OKF logs, or the whole bundle with `all` (args: [all] [aggressiveness])",
         template: compactPrompt(options.bundleDirectory),
       }
     },
