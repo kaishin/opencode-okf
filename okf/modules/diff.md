@@ -40,4 +40,4 @@ timestamp: 2026-08-03T09:47:54Z
 # Related
 
 * [okf_diff tool](/tools/okf_diff.md)
-* [okf-diff command](/commands/okf-diff.md)
+* [okf-update command](/commands/okf-update.md) (`diff` mode)

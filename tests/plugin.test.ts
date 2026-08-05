@@ -39,15 +39,17 @@ describe("OKFPlugin", () => {
     const { input } = await makeContext()
     const hooks = await OKFPlugin(input as never)
     const custom = { template: "keep me" }
-    const config = { command: { "okf-create": custom } }
+    const config = { command: { "okf-init": custom } }
 
     await hooks.config?.(config as never)
 
-    expect(config.command["okf-create"]).toBe(custom)
-    expect(config.command["okf-update"]?.template).toContain("Update the existing OKF bundle")
-    expect(config.command["okf-capture"]?.template).toContain("okf_capture")
+    expect(config.command["okf-init"]).toBe(custom)
+    expect(config.command["okf-update"]?.template).toContain("Hard source mode")
+    expect(config.command["okf-update"]?.template).toContain("`session`")
+    expect(config.command["okf-update"]?.template).toContain("`diff`")
     expect(config.command["okf-validate"]?.template).toContain("okf_validate")
-    expect(config.command["okf-diff"]?.template).toContain("okf_diff")
+    expect(config.command["okf-capture"]).toBeUndefined()
+    expect(config.command["okf-diff"]).toBeUndefined()
   })
 
   test("uses the configured bundle directory in commands", async () => {
@@ -57,7 +59,7 @@ describe("OKFPlugin", () => {
 
     await hooks.config?.(config as never)
 
-    expect(config.command?.["okf-create"]?.template).toContain("`knowledge/okf/`")
+    expect(config.command?.["okf-init"]?.template).toContain("`knowledge/okf/`")
   })
 
   test("injects runtime context only into OKF commands", async () => {
@@ -67,7 +69,7 @@ describe("OKFPlugin", () => {
     const otherOutput = { parts: [{ type: "text", text: "prompt" }] }
 
     await hooks["command.execute.before"]?.(
-      { command: "okf-create", sessionID: "session", arguments: "" },
+      { command: "okf-init", sessionID: "session", arguments: "" },
       okfOutput as never,
     )
     await hooks["command.execute.before"]?.(

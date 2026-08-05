@@ -2,7 +2,7 @@ import { relative, resolve, sep } from "node:path"
 import { type Plugin, tool } from "@opencode-ai/plugin"
 import { captureSession, formatCaptureReport } from "./capture.js"
 import { diffSources, formatDiffReport } from "./diff.js"
-import { capturePrompt, compactPrompt, createPrompt, diffPrompt, updatePrompt, validatePrompt } from "./prompts.js"
+import { compactPrompt, initPrompt, updatePrompt, validatePrompt } from "./prompts.js"
 import {
   formatValidationReport,
   isPathInside,
@@ -32,7 +32,7 @@ function readOptions(options: Record<string, unknown> | undefined): Required<OKF
 export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) => {
   const options = readOptions(rawOptions)
   const configuredRoot = resolveBundlePath(worktree, options.bundleDirectory)
-  const commandNames = new Set(["okf-create", "okf-update", "okf-capture", "okf-validate", "okf-diff", "okf-compact"])
+  const commandNames = new Set(["okf-init", "okf-update", "okf-validate", "okf-compact"])
   let validationTimer: ReturnType<typeof setTimeout> | undefined
   let lastErrorSignature = ""
 
@@ -69,17 +69,13 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
   return {
     config: async (config) => {
       config.command ??= {}
-      config.command["okf-create"] ??= {
-        description: "Create an evidence-backed OKF bundle",
-        template: createPrompt(options.bundleDirectory),
+      config.command["okf-init"] ??= {
+        description: "Initialize an evidence-backed OKF bundle",
+        template: initPrompt(options.bundleDirectory),
       }
       config.command["okf-update"] ??= {
-        description: "Update an existing OKF bundle from repository evidence",
+        description: "Update OKF bundle from repo, git diff, or session (args: [session|diff])",
         template: updatePrompt(options.bundleDirectory),
-      }
-      config.command["okf-capture"] ??= {
-        description: "Capture durable knowledge from the current coding session",
-        template: capturePrompt(options.bundleDirectory),
       }
       config.command["okf-validate"] ??= {
         description: "Validate an OKF bundle and optionally fix it",
@@ -88,10 +84,6 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
       config.command["okf-compact"] ??= {
         description: "Compact OKF log files, keeping only durable, future-relevant knowledge",
         template: compactPrompt(options.bundleDirectory),
-      }
-      config.command["okf-diff"] ??= {
-        description: "List files changed since a git ref to scope OKF bundle work",
-        template: diffPrompt(options.bundleDirectory),
       }
     },
 
@@ -135,7 +127,7 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
       }),
       okf_capture: tool({
         description:
-          "Capture durable knowledge from the current coding session as a dated entry in the OKF bundle's root log.md.",
+          "Append a dated entry to the OKF bundle's root log.md for decisions, open questions, or history that do not belong in a concept file. Prefer updating concepts/indexes first (e.g. via /okf-update session).",
         args: {
           title: tool.schema.string().optional().describe("Short title for this session capture."),
           summary: tool.schema.string().describe("Concise summary of the session's important outcome."),

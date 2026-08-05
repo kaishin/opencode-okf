@@ -6,12 +6,10 @@ The authoring commands make OpenCode inspect repository evidence before it write
 
 ## Features
 
-- `/okf-create` inspects a repository and creates an evidence-backed OKF bundle.
-- `/okf-update` reconciles an existing bundle with current source material.
-- `/okf-capture` distills the current coding session into a dated OKF log entry.
+- `/okf-init` inspects a repository and creates an evidence-backed OKF bundle.
+- `/okf-update [session|diff]` updates concepts and indexes from full repo (no arg), git diff, or the current session.
 - `/okf-validate` reports conformance errors and quality warnings, with opt-in fixes.
 - `/okf-compact` prunes log files down to durable, future-relevant knowledge.
-- `/okf-diff` lists files changed since a git ref to scope OKF bundle work.
 - `okf_validate`, `okf_capture`, and `okf_diff` give agents deterministic OKF and git-diff tools.
 - A command hook supplies the exact UTC timestamp to OKF workflows.
 - A debounced file-event hook warns when edits make the bundle nonconformant.
@@ -19,7 +17,47 @@ The authoring commands make OpenCode inspect repository evidence before it write
 
 ## Install
 
-Install the published plugin by adding it to `opencode.json`:
+### With OCX (recommended)
+
+[OCX](https://ocx.kdco.dev) manages OpenCode profiles and plugins.
+
+Install OCX:
+
+```sh
+curl -fsSL https://ocx.kdco.dev/install.sh | sh
+```
+
+Initialize global OCX config (once):
+
+```sh
+ocx init --global
+```
+
+Add the plugin to your global config:
+
+```sh
+ocx add npm:opencode-okf -g
+```
+
+Or to a named profile:
+
+```sh
+ocx add npm:opencode-okf -p default
+```
+
+Launch OpenCode through OCX:
+
+```sh
+ocx oc
+# or with a profile:
+ocx oc -p default
+```
+
+Quit and restart OpenCode after changing plugin configuration.
+
+### Manual
+
+Add the published plugin to `opencode.json`:
 
 ```json
 {
@@ -44,21 +82,25 @@ For local development, build this package and reference its compiled entry point
 Create a bundle using repository-wide evidence:
 
 ```text
-/okf-create focus on revenue, subscriptions, and customer lifecycle knowledge
+/okf-init focus on revenue, subscriptions, and customer lifecycle knowledge
 ```
 
-Refresh an existing bundle:
+Update an existing bundle (hard source mode on the first arg):
 
 ```text
-/okf-update review schema migrations and dashboard changes since the last update
+/okf-update
+/okf-update review schema migrations and dashboard changes
+/okf-update diff
+/okf-update diff origin/main
+/okf-update session
+/okf-update session focus on architecture decisions
 ```
 
-Capture important decisions and unresolved questions from the current session:
-
-```text
-/okf-capture
-/okf-capture focus on architecture decisions and follow-up questions
-```
+| Args | Source |
+| --- | --- |
+| *(none)* or free-form focus | Full repository evidence |
+| `diff [ref] [focus…]` | Git changes via `okf_diff` (default HEAD) |
+| `session [focus…]` | This conversation + work — concepts/indexes first, not log-only |
 
 Validate without editing:
 
@@ -75,13 +117,6 @@ Compact accumulated log entries, keeping only what remains useful:
 ```
 
 The first argument sets the aggressiveness: `conservative` (remove only clearly superseded or duplicated entries), `balanced` (default; also drop chatter and transient details), or `aggressive` (keep only standing decisions, constraints, and open questions, summarizing older groups).
-
-List uncommitted changes, or changes against another ref, before updating a bundle:
-
-```text
-/okf-diff
-/okf-diff origin/main
-```
 
 Ask OpenCode to repair format problems after validation:
 

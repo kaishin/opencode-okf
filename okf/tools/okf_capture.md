@@ -31,4 +31,4 @@ Registered in `src/index.ts` as `tool.okf_capture`; implementation `captureSessi
 # Related
 
 * [Capture module](/modules/capture.md)
-* [okf-capture command](/commands/okf-capture.md)
+* [okf-update command](/commands/okf-update.md) (`session` mode)

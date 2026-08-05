@@ -9,8 +9,20 @@ const AUTHORING_RULES = `Follow the Open Knowledge Format v0.1 specification:
 - Preserve producer-defined frontmatter fields and supported existing knowledge when updating files.
 - Run the \`okf_validate\` tool before finishing and resolve every conformance error. Broken links and missing recommended metadata are warnings, not reasons to fabricate content.`
 
-export function createPrompt(bundleDirectory: string): string {
-  return `Create an OKF bundle in \`${bundleDirectory}/\` that captures the repository's most useful domain knowledge for humans and AI agents.
+export type UpdateMode = "repo" | "diff" | "session"
+
+/** Parse hard source mode. First token \`session\` or \`diff\` selects mode; otherwise repo (including no args). */
+export function parseUpdateArgs(args: string): { mode: UpdateMode; rest: string } {
+  const tokens = args.trim().split(/\s+/).filter(Boolean)
+  const first = tokens[0]
+  if (first === "session" || first === "diff") {
+    return { mode: first, rest: tokens.slice(1).join(" ") }
+  }
+  return { mode: "repo", rest: args.trim() }
+}
+
+export function initPrompt(bundleDirectory: string): string {
+  return `Initialize an OKF bundle in \`${bundleDirectory}/\` that captures the repository's most useful domain knowledge for humans and AI agents.
 
 Before writing, inspect the repository broadly. Look for product and business documentation, application models, database schemas and migrations, analytics definitions, queries, dashboards, API contracts, runbooks, and configuration. Use focused searches and read authoritative sources; do not infer commercial semantics from names alone.
 
@@ -23,28 +35,66 @@ Additional user guidance: $ARGUMENTS
 When finished, summarize every file created or changed, list unresolved questions, and report the final validator result.`
 }
 
-export function updatePrompt(bundleDirectory: string): string {
-  return `Update the existing OKF bundle in \`${bundleDirectory}/\` so it accurately reflects the repository now.
+function updateSourceBlock(bundleDirectory: string, mode: UpdateMode, rest: string): string {
+  if (mode === "diff") {
+    return `Source mode: **diff** (hard arg \`diff\`).
 
-Read the current bundle first, then inspect relevant repository history and authoritative source files. Identify stale claims, missing high-value concepts, changed schemas or calculations, broken relationships, and indexes that need refreshing. Make the smallest evidence-backed changes and add date-grouped entries to \`log.md\` for meaningful updates.
+1. Run the \`okf_diff\` tool first. Optional next token is a git ref (default HEAD = uncommitted changes); further tokens are focus: ${rest || "(none)"}.
+2. Read the changed files and their direct dependencies as evidence.
+3. Update **concept files and indexes** for knowledge those changes support. Use \`log.md\` only for dated history, open questions, or decisions that do not belong in a concept.
+4. Do not broaden into unrelated areas of the repo.`
+  }
+
+  if (mode === "session") {
+    return `Source mode: **session** (hard arg \`session\`).
+
+1. Review this conversation and work completed in the worktree. Extract evidence-backed decisions, implementation facts, tradeoffs, constraints, meaningful changes, and unresolved questions.
+2. Prefer writing or updating **concept files and indexes** when the session established durable product/domain knowledge. Session update is not log-only.
+3. Use \`log.md\` (via \`okf_capture\` or direct edit) only for standing decisions, open questions, and history that should not live in a concept file.
+4. Skip routine chatter, secrets, and unsupported assumptions. Focus: ${rest || "(none)"}.`
+  }
+
+  return `Source mode: **repo** (no hard arg — full repository evidence).
+
+1. Read the current bundle in \`${bundleDirectory}/\` first.
+2. Inspect authoritative sources (docs, models, schemas, analytics, APIs, runbooks, config). Do not infer commercial semantics from names alone.
+3. Fix stale claims, missing concepts, broken relationships, and stale indexes with the smallest evidence-backed edits.
+4. Write concepts and indexes first; use \`log.md\` for meaningful update history and open questions. Focus: ${rest || "(none)"}.`
+}
+
+/** When mode is set (Pi), embed it. When omitted (OpenCode/Claude templates), model parses $ARGUMENTS. */
+export function updatePrompt(bundleDirectory: string, mode?: UpdateMode, rest = ""): string {
+  if (mode) {
+    return `Update the existing OKF bundle in \`${bundleDirectory}/\`.
+
+${updateSourceBlock(bundleDirectory, mode, rest)}
+
+Always prefer concept files and indexes for durable knowledge. Logs are secondary.
 
 ${AUTHORING_RULES}
 
-Update focus or additional guidance: $ARGUMENTS
+When finished, summarize every file created, changed, or removed, list unresolved questions, and report the final validator result.`
+  }
+
+  return `Update the existing OKF bundle in \`${bundleDirectory}/\`.
+
+Hard source mode — first token of $ARGUMENTS only:
+
+| Args | Mode | Evidence source |
+| --- | --- | --- |
+| *(none)* | **repo** | Full repository (docs, schemas, code, config) |
+| \`diff\` *[ref] [focus…]* | **diff** | \`okf_diff\` (default base HEAD); scope to changed files |
+| \`session\` *[focus…]* | **session** | This conversation + completed work |
+
+Any first token other than \`session\` or \`diff\` is free-form focus under **repo**.
+
+Arguments: $ARGUMENTS
+
+In every mode: read the bundle first; update **concepts and indexes** for durable knowledge; use \`log.md\` only for history, open questions, or decisions that do not belong in a concept. Session mode is not log-only. Never invent facts.
+
+${AUTHORING_RULES}
 
 When finished, summarize every file created, changed, or removed, list unresolved questions, and report the final validator result.`
-}
-
-export function capturePrompt(bundleDirectory: string): string {
-  return `Capture the durable knowledge from the current coding session in \`${bundleDirectory}/\`.
-
-Review the conversation and the work completed in the current worktree. Extract only important, evidence-backed decisions, implementation facts, tradeoffs, constraints, meaningful changes, and unresolved questions. Do not copy routine chatter, credentials, secrets, or unsupported assumptions. Distinguish decisions that were actually made from ideas that were rejected or left open.
-
-Call the \`okf_capture\` tool with a concise title, a useful summary, and separate lists for decisions, changes, and open questions. The tool appends a dated entry to the bundle's root \`log.md\`. Use the user's arguments as additional focus:
-
-$ARGUMENTS
-
-When finished, run the \`okf_validate\` tool and report the captured file, unresolved questions, and final validator result.`
 }
 
 export function compactPrompt(bundleDirectory: string): string {
@@ -67,16 +117,6 @@ Interpret the arguments as the compaction aggressiveness, defaulting to \`balanc
 Any remaining arguments after the aggressiveness level are additional focus or guidance: $ARGUMENTS
 
 When finished, run the \`okf_validate\` tool and report what was kept, promoted, and removed, plus the final validator result.`
-}
-
-export function diffPrompt(bundleDirectory: string): string {
-  return `List the files changed since a git ref by running the \`okf_diff\` tool, then report the results clearly.
-
-Arguments: $ARGUMENTS
-
-Interpret the arguments as an optional git ref to diff against (for example \`origin/main\`, a SHA, or a tag). Default to HEAD, which covers uncommitted changes. Scope to a subdirectory only if the arguments name one.
-
-Use the changed files to scope OKF work in \`${bundleDirectory}/\`: if the arguments ask for a bundle update, restrict the update to knowledge supported by the changed files and follow the OKF authoring rules. Otherwise keep this a read-only report and suggest next steps, such as running \`/okf-update\` scoped to relevant changes.`
 }
 
 export function validatePrompt(bundleDirectory: string): string {

@@ -3,7 +3,7 @@ type: Module
 title: Prompts
 description: Slash-command templates that drive model-led OKF authoring and maintenance.
 tags: [prompts, commands, authoring]
-timestamp: 2026-08-03T09:47:54Z
+timestamp: 2026-08-05T00:00:00Z
 ---
 
 # Source
@@ -14,16 +14,23 @@ timestamp: 2026-08-03T09:47:54Z
 
 | Function | Command |
 | --- | --- |
-| `createPrompt(bundleDirectory)` | `/okf-create` |
-| `updatePrompt(bundleDirectory)` | `/okf-update` |
-| `capturePrompt(bundleDirectory)` | `/okf-capture` |
+| `initPrompt(bundleDirectory)` | `/okf-init` |
+| `updatePrompt(bundleDirectory, mode?, rest?)` | `/okf-update` |
+| `parseUpdateArgs(args)` | hard mode parser for update |
 | `compactPrompt(bundleDirectory)` | `/okf-compact` |
-| `diffPrompt(bundleDirectory)` | `/okf-diff` |
 | `validatePrompt(bundleDirectory)` | `/okf-validate` |
+
+# Update hard modes
+
+| Args | Mode |
+| --- | --- |
+| *(none)* | repo — full repository |
+| `diff [ref] [focus…]` | git diff via `okf_diff` |
+| `session [focus…]` | conversation + work; concepts/indexes first, not log-only |
 
 # Shared authoring rules (`AUTHORING_RULES`)
 
-Embedded in create/update prompts:
+Embedded in init/update prompts:
 
 - Bundle directory is the OKF root
 - Concepts: UTF-8 Markdown + YAML frontmatter; required non-empty `type`; recommended `title`, `description`, `tags`, ISO 8601 UTC `timestamp`; `resource` only when canonical URI is known
@@ -36,7 +43,7 @@ Embedded in create/update prompts:
 
 # Argument placeholder
 
-Templates include `$ARGUMENTS` for user-supplied focus text. Plugin hook appends runtime UTC time and configured bundle directory at execute time.
+Templates include `$ARGUMENTS` for user-supplied text. Plugin hook appends runtime UTC time and configured bundle directory at execute time.
 
 # Compact aggressiveness (prompt-only)
 

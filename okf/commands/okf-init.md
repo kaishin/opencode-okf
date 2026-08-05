@@ -1,16 +1,16 @@
 ---
 type: Command
-title: /okf-create
-description: Create an evidence-backed OKF bundle from repository inspection.
+title: /okf-init
+description: Initialize an evidence-backed OKF bundle from repository inspection.
 tags: [command, authoring]
 timestamp: 2026-08-03T09:47:54Z
 ---
 
 # Registration
 
-- Name: `okf-create`
-- Template: `createPrompt(bundleDirectory)` in `src/prompts.ts`
-- Description: "Create an evidence-backed OKF bundle"
+- Name: `okf-init`
+- Template: `initPrompt(bundleDirectory)` in `src/prompts.ts`
+- Description: "Initialize an evidence-backed OKF bundle"
 
 # Behavior (prompt-driven)
 

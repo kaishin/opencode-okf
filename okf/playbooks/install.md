@@ -2,11 +2,47 @@
 type: Playbook
 title: Install
 description: Install opencode-okf in an OpenCode configuration.
-tags: [install, opencode]
-timestamp: 2026-08-03T09:47:54Z
+tags: [install, opencode, ocx]
+timestamp: 2026-08-05T10:30:00Z
 ---
 
-# Published plugin
+# With OCX
+
+Install [OCX](https://ocx.kdco.dev):
+
+```sh
+curl -fsSL https://ocx.kdco.dev/install.sh | sh
+```
+
+Initialize global config (once):
+
+```sh
+ocx init --global
+```
+
+Add the plugin globally:
+
+```sh
+ocx add npm:opencode-okf -g
+```
+
+Or to a named profile:
+
+```sh
+ocx add npm:opencode-okf -p default
+```
+
+Launch OpenCode:
+
+```sh
+ocx oc
+# or:
+ocx oc -p default
+```
+
+Quit and restart OpenCode after changing plugin configuration.
+
+# Manual (published plugin)
 
 Add to `opencode.json`:
 

@@ -53,5 +53,5 @@ timestamp: 2026-08-03T09:47:54Z
 # Related
 
 * [okf_capture tool](/tools/okf_capture.md)
-* [okf-capture command](/commands/okf-capture.md)
+* [okf-update command](/commands/okf-update.md) (`session` mode; concepts first, not log-only)
 * [Reserved files](/okf-rules/reserved-files.md)

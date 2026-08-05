@@ -22,7 +22,9 @@ timestamp: 2026-08-03T09:47:54Z
 
 # Command names
 
-`okf-create`, `okf-update`, `okf-capture`, `okf-validate`, `okf-diff`, `okf-compact`.
+`okf-init`, `okf-update`, `okf-validate`, `okf-compact`.
+
+Tools (not slash commands): `okf_validate`, `okf_capture`, `okf_diff`.
 
 # Edit-validation behavior
 

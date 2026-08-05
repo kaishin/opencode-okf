@@ -27,4 +27,4 @@ Registered in `src/index.ts` as `tool.okf_diff`; implementation `diffSources` in
 # Related
 
 * [Diff module](/modules/diff.md)
-* [okf-diff command](/commands/okf-diff.md)
+* [okf-update command](/commands/okf-update.md) (`diff` mode)
