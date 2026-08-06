@@ -1,5 +1,22 @@
 # Bundle Update Log
 
+## 2026-08-06
+
+* **Session: Plugin hooks for timed OKF capture** (2026-08-06T08:06:50.897Z)
+  * **Summary**: Session mapped OpenCode plugin hooks to OKF capture timing. Current plugin uses command.execute.before and file-edit events; best next hooks for automatic/timely capture are session.idle, experimental.session.compacting, tool.execute.after, and experimental.chat.system.transform.
+  * **Decisions**:
+    * Prioritize session.idle as the primary end-of-work capture nudge
+    * Treat experimental.session.compacting as critical last-chance capture or OKF injection before context loss
+    * Use tool.execute.after to buffer session change evidence so capture is not pure model memory
+    * Use experimental.chat.system.transform for continuous OKF context injection, not capture itself
+  * **Changes**:
+    * Documented already-used hooks: command.execute.before (UTC/runtime context) and event file.edited/file.watcher.updated (debounced validate-on-edit)
+    * Produced hooks fitness table for capture timing vs weak/skip hooks (chat.params, shell.env, raw message.updated flood)
+  * **Open questions**:
+    * Should idle nudge auto-run capture, only toast/suggest /okf-capture, or stay fully manual?
+    * Should pre-compaction capture write log entries automatically or only inject OKF summary into the compaction prompt?
+    * Where should the hooks roadmap table live as a durable concept (playbook vs module vs project doc)?
+
 ## 2026-08-03
 
 * **Decision**: Canonical package `resource` is the npm page (`https://www.npmjs.com/package/opencode-okf`); GitHub remains the source repository, not the release URI.
