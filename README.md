@@ -13,6 +13,7 @@ The authoring commands make OpenCode inspect repository evidence before it write
 - `okf_inspect`, `okf_init`, `okf_validate`, `okf_capture`, and `okf_diff` give agents deterministic OKF and git-diff tools.
 - A command hook supplies the exact UTC timestamp to OKF workflows.
 - A debounced file-event hook warns when edits make the bundle nonconformant.
+- Configurable capture moments: toast nudges or automatic `/okf-update session` when the session goes idle, and OKF preservation context before compaction.
 - A system-prompt hook injects OKF authoring guidance when the conversation mentions OKF.
 - Existing commands and producer-defined OKF frontmatter are preserved.
 
@@ -145,7 +146,14 @@ Pass plugin options with OpenCode's tuple syntax:
       "opencode-okf",
       {
         "bundleDirectory": "knowledge/okf",
-        "validateOnEdit": false
+        "validateOnEdit": false,
+        "captureEvidence": true,
+        "captureOn": {
+          "sessionIdle": "notify",
+          "compacting": "auto",
+          "compacted": "notify",
+          "todoComplete": "notify"
+        }
       }
     ]
   ]
@@ -156,6 +164,13 @@ Pass plugin options with OpenCode's tuple syntax:
 | --- | --- | --- |
 | `bundleDirectory` | `okf` | Bundle directory relative to the worktree. Paths outside the worktree are rejected. |
 | `validateOnEdit` | `true` | Debounce validation after bundle file events and show a warning only for conformance errors. |
+| `captureEvidence` | `false` | Buffer recent tool activity per session and inject it into `/okf-update session` prompts so captures rest on evidence, not model memory. |
+| `captureOn.sessionIdle` | `off` | `off`: nothing. `notify`: toast nudge to run `/okf-update session` when the session goes idle after user activity. `auto`: run `/okf-update session` in the session automatically. |
+| `captureOn.compacting` | `off` | `off`: nothing. `notify`: toast nudge when the context is about to be compacted. `auto`: inject OKF preservation instructions into the compaction context so capture-worthy knowledge survives compaction. |
+| `captureOn.compacted` | `off` | `off`: nothing. `notify`: toast nudge after the context was compacted. `auto`: run `/okf-update session` right after compaction. |
+| `captureOn.todoComplete` | `off` | `off`: nothing. `notify`: toast nudge when the session's todo list flips to all completed/cancelled. `auto`: run `/okf-update session` at that point. |
+
+Capture moments act at most once per stretch of user activity, only when the bundle directory exists, and never in subagent sessions. An automatic capture does not retrigger itself. `compacted` is the exception: compaction is a discrete knowledge-loss event, so it fires every time. Buffered evidence is drained into the next `/okf-update session` run and cleared when the session is deleted.
 
 ## Validation
 

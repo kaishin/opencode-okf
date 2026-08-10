@@ -1,5 +1,46 @@
 # Bundle Update Log
 
+## 2026-08-10
+
+* **Session: More capture moments and evidence buffering** (2026-08-10T11:11:12.952Z)
+  * **Summary**: Added captureOn.compacted and captureOn.todoComplete moments plus a captureEvidence option that buffers tool activity into okf-update session prompts. All three suggestions from the hook-surface review are now implemented.
+  * **Decisions**:
+    * compacted fires on every session.compacted event (no once-per-activity guard) because compaction is a discrete knowledge-loss event; todoComplete and sessionIdle keep the armed/consumed once-per-activity guard
+    * All auto moments share runCaptureMoment, which sets the per-session capturing state so the injected okf-update command's own messages cannot re-arm or loop
+    * captureEvidence buffers `tool: title` lines per session (FIFO, 50-entry cap), drains them into the okf-update session prompt via command.execute.before, and clears on session.deleted
+    * todoComplete treats completed and cancelled todos as done and requires a non-empty list plus prior user activity
+  * **Changes**:
+    * src/index.ts: CaptureMoments gains compacted and todoComplete; new captureEvidence option with validation; extracted isSubagentSession, sendCaptureCommand, runCaptureMoment helpers; todo.updated, session.compacted, session.deleted event handling; tool.execute.after buffering
+    * tests/plugin.test.ts: 9 new tests covering compacted notify/auto/off, todoComplete arming and loop-guard, evidence injection/drain/off, session.deleted cleanup, option validation (42 tests total)
+    * README.md, okf/configuration/plugin-options.md, okf/modules/plugin.md, TODO.md updated for the new options
+  * **Open questions**:
+    * Is a sessionError capture moment (notify-only) worth adding for failure/debugging sessions?
+    * Should experimental.chat.system.transform get a continuous-OKF-context injection option separate from capture moments?
+
+* **Session: Dogfooding capture config** (2026-08-10T11:01:22.268Z)
+  * **Summary**: Added a root `opencode.json` so this repo loads its own plugin from the local `dist/` build, and verified compaction behavior after a real compaction event.
+  * **Decisions**:
+    * User set both capture moments to `"auto"` in the repo config (initial draft had `sessionIdle: "notify"`)
+  * **Changes**:
+    * Created `opencode.json` with `bundleDirectory: "okf"`, `validateOnEdit: true`, `captureOn: { sessionIdle: "auto", compacting: "auto" }`
+    * Documented the dogfooding setup and the inject-only nature of `compacting: "auto"` in [plugin-options](/configuration/plugin-options.md)
+  * **Verified**:
+    * After an actual compaction with `compacting: "auto"`, no new bundle writes occurred — confirmed expected, since the hook injects preservation instructions into the compaction context rather than capturing
+  * **Open questions** (carried): post-compaction nudge via `session.compacted`; `tool.execute.after` evidence buffering
+* **Session: Configurable capture moments** (2026-08-10T00:00:00.000Z)
+  * **Summary**: Implemented the `captureOn` plugin option so users configure automatic capture at lifecycle moments: `sessionIdle` and `compacting`, each `"off"` (default), `"notify"` (toast nudge), or `"auto"`.
+  * **Decisions**:
+    * Idle `auto` sends the `okf-update session` command to the idled session; compacting `auto` injects OKF preservation instructions into `experimental.session.compacting` context instead of running capture mid-compaction
+    * Per-session state machine (armed/consumed/capturing) prevents the auto-capture command's own messages from retriggering capture
+    * Capture moments skip subagent sessions and only fire when the bundle directory exists
+  * **Changes**:
+    * Added `CaptureBehavior`/`CaptureMoments` types and `captureOn` validation in `src/index.ts`
+    * Added `session.idle`/`message.updated` handling in the event hook and the `experimental.session.compacting` hook
+    * Documented the options in README and `okf/configuration/plugin-options.md`; added 8 plugin tests
+  * **Open questions**:
+    * Should `session.compacted` also trigger a post-compaction capture nudge?
+    * Is `tool.execute.after` evidence buffering (from the 2026-08-06 analysis) still worth adding?
+
 ## 2026-08-06
 
 * **Session: Plugin hooks for timed OKF capture** (2026-08-06T08:06:50.897Z)

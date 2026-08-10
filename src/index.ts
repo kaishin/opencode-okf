@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises"
 import { relative, resolve, sep } from "node:path"
 import { type Plugin, tool } from "@opencode-ai/plugin"
 import { captureSession, formatCaptureReport } from "./capture.js"
@@ -12,14 +13,45 @@ import {
   validateBundle,
 } from "./validator.js"
 
+/** What to do at a capture moment: nothing, toast nudge, or automatic action. */
+export type CaptureBehavior = "off" | "notify" | "auto"
+
+/** Lifecycle moments at which the plugin can nudge or capture session knowledge. */
+export interface CaptureMoments {
+  /** When the session goes idle after user activity. Defaults to `off`. */
+  sessionIdle?: CaptureBehavior
+  /** When the session context is about to be compacted. Defaults to `off`. */
+  compacting?: CaptureBehavior
+  /** After the session context was compacted. Defaults to `off`. */
+  compacted?: CaptureBehavior
+  /** When the session's todo list flips to all completed/cancelled. Defaults to `off`. */
+  todoComplete?: CaptureBehavior
+}
+
 export interface OKFPluginOptions {
   /** Bundle directory relative to the active worktree. Defaults to `okf`. */
   bundleDirectory?: string
   /** Validate after files in the bundle change. Defaults to true. */
   validateOnEdit?: boolean
+  /** Buffer per-session tool activity and inject it into `okf-update session` prompts. Defaults to false. */
+  captureEvidence?: boolean
+  /** Capture behavior at lifecycle moments. Every moment defaults to `off`. */
+  captureOn?: CaptureMoments
 }
 
-function readOptions(options: Record<string, unknown> | undefined): Required<OKFPluginOptions> {
+const CAPTURE_BEHAVIORS = new Set<string>(["off", "notify", "auto"])
+
+function readCaptureBehavior(value: unknown, key: string): CaptureBehavior {
+  if (value === undefined) return "off"
+  if (typeof value !== "string" || !CAPTURE_BEHAVIORS.has(value)) {
+    throw new Error(`opencode-okf: \`captureOn.${key}\` must be "off", "notify", or "auto"`)
+  }
+  return value as CaptureBehavior
+}
+
+function readOptions(
+  options: Record<string, unknown> | undefined,
+): Required<OKFPluginOptions> & { captureOn: Required<CaptureMoments> } {
   const bundleDirectory = options?.bundleDirectory ?? "okf"
   const validateOnEdit = options?.validateOnEdit ?? true
   if (typeof bundleDirectory !== "string" || bundleDirectory.trim().length === 0) {
@@ -28,7 +60,21 @@ function readOptions(options: Record<string, unknown> | undefined): Required<OKF
   if (typeof validateOnEdit !== "boolean") {
     throw new Error("opencode-okf: `validateOnEdit` must be a boolean")
   }
-  return { bundleDirectory, validateOnEdit }
+  const captureEvidence = options?.captureEvidence ?? false
+  if (typeof captureEvidence !== "boolean") {
+    throw new Error("opencode-okf: `captureEvidence` must be a boolean")
+  }
+  const captureOnOption = options?.captureOn
+  if (captureOnOption !== undefined && (typeof captureOnOption !== "object" || captureOnOption === null)) {
+    throw new Error("opencode-okf: `captureOn` must be an object")
+  }
+  const captureOn = {
+    sessionIdle: readCaptureBehavior((captureOnOption as CaptureMoments | undefined)?.sessionIdle, "sessionIdle"),
+    compacting: readCaptureBehavior((captureOnOption as CaptureMoments | undefined)?.compacting, "compacting"),
+    compacted: readCaptureBehavior((captureOnOption as CaptureMoments | undefined)?.compacted, "compacted"),
+    todoComplete: readCaptureBehavior((captureOnOption as CaptureMoments | undefined)?.todoComplete, "todoComplete"),
+  }
+  return { bundleDirectory, validateOnEdit, captureEvidence, captureOn }
 }
 
 export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) => {
@@ -38,6 +84,128 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
   const okfPromptPattern = /(?:\bOKF\b|open knowledge format|\bokf\/)/i
   let validationTimer: ReturnType<typeof setTimeout> | undefined
   let lastErrorSignature = ""
+  // Per-session capture state: "armed" after user activity, "consumed" after we
+  // acted, "capturing" while an auto-capture command runs so its own messages
+  // do not re-arm the session and loop.
+  const captureStates = new Map<string, "armed" | "consumed" | "capturing">()
+  // Per-session evidence buffer: recent tool activity lines, injected into
+  // `okf-update session` prompts so captures rest on evidence, not memory.
+  const evidenceBuffers = new Map<string, string[]>()
+  const EVIDENCE_LIMIT = 50
+
+  async function bundleExists(): Promise<boolean> {
+    try {
+      return (await stat(configuredRoot)).isDirectory()
+    } catch {
+      return false
+    }
+  }
+
+  async function logCaptureError(message: string, extra?: Record<string, unknown>): Promise<void> {
+    await Promise.allSettled([
+      client.app.log({ body: { service: "opencode-okf", level: "warn", message, extra } }),
+    ])
+  }
+
+  async function toastCaptureNudge(message: string): Promise<void> {
+    await Promise.allSettled([
+      client.tui.showToast({
+        body: { title: "OKF capture", message, variant: "info", duration: 8000 },
+        query: { directory },
+      }),
+    ])
+  }
+
+  async function isSubagentSession(sessionID: string): Promise<boolean> {
+    try {
+      const session = await client.session.get({ path: { id: sessionID }, query: { directory } })
+      return Boolean(session.data?.parentID)
+    } catch {
+      // If the session lookup fails, proceed; a stray nudge beats silence.
+      return false
+    }
+  }
+
+  async function sendCaptureCommand(sessionID: string): Promise<void> {
+    const result = await Promise.allSettled([
+      client.session.command({
+        path: { id: sessionID },
+        query: { directory },
+        body: { command: "okf-update", arguments: "session" },
+      }),
+    ])
+    if (result[0]?.status === "rejected") {
+      captureStates.set(sessionID, "consumed")
+      await logCaptureError("OKF auto-capture failed to start", { sessionID, error: String(result[0].reason) })
+    }
+  }
+
+  /** Shared notify/auto flow for capture moments. Caller enforces its own arming rules. */
+  async function runCaptureMoment(
+    sessionID: string,
+    behavior: CaptureBehavior,
+    messages: { notify: string; auto: string },
+  ): Promise<void> {
+    if (behavior === "off" || captureStates.get(sessionID) === "capturing") return
+    if (!(await bundleExists())) return
+    if (await isSubagentSession(sessionID)) return
+    captureStates.set(sessionID, behavior === "auto" ? "capturing" : "consumed")
+    if (behavior === "notify") {
+      await toastCaptureNudge(messages.notify)
+      return
+    }
+    await toastCaptureNudge(messages.auto)
+    await sendCaptureCommand(sessionID)
+  }
+
+  async function handleSessionIdle(sessionID: string): Promise<void> {
+    const state = captureStates.get(sessionID)
+    if (state === "capturing") {
+      captureStates.set(sessionID, "consumed")
+      return
+    }
+    if (state !== "armed") return
+    await runCaptureMoment(sessionID, options.captureOn.sessionIdle, {
+      notify: "Session idle. Run /okf-update session to capture this session's knowledge.",
+      auto: "Session idle. Capturing this session's knowledge via /okf-update session…",
+    })
+  }
+
+  async function handleSessionCompacted(sessionID: string): Promise<void> {
+    // Compaction is a discrete knowledge-loss event, so it fires every time
+    // rather than once per user activity stretch.
+    await runCaptureMoment(sessionID, options.captureOn.compacted, {
+      notify: "Context was compacted. Run /okf-update session to capture durable knowledge.",
+      auto: "Context was compacted. Capturing this session's knowledge via /okf-update session…",
+    })
+  }
+
+  async function handleTodoUpdated(sessionID: string, todos: Array<{ status: string }>): Promise<void> {
+    if (options.captureOn.todoComplete === "off") return
+    if (todos.length === 0) return
+    if (!todos.every((todo) => todo.status === "completed" || todo.status === "cancelled")) return
+    if (captureStates.get(sessionID) !== "armed") return
+    await runCaptureMoment(sessionID, options.captureOn.todoComplete, {
+      notify: "All todos complete. Run /okf-update session to capture this session's knowledge.",
+      auto: "All todos complete. Capturing this session's knowledge via /okf-update session…",
+    })
+  }
+
+  function bufferEvidence(sessionID: string, toolName: string, title: string): void {
+    const line = `- ${toolName}: ${title.replace(/\s+/g, " ").trim().slice(0, 120)}`
+    const entries = evidenceBuffers.get(sessionID) ?? []
+    entries.push(line)
+    if (entries.length > EVIDENCE_LIMIT) entries.splice(0, entries.length - EVIDENCE_LIMIT)
+    evidenceBuffers.set(sessionID, entries)
+  }
+
+  /** Drain buffered evidence for a session into prompt text, if any. */
+  function drainEvidence(sessionID: string): string {
+    const entries = evidenceBuffers.get(sessionID)
+    if (!entries || entries.length === 0) return ""
+    evidenceBuffers.delete(sessionID)
+    return `\n\nBuffered session evidence (${entries.length} recent tool call(s), oldest first):\n${entries.join("\n")}`
+  }
 
   async function reportEditValidation(): Promise<void> {
     const report = await validateBundle(configuredRoot)
@@ -269,12 +437,72 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
 
     "command.execute.before": async (input, output) => {
       if (!commandNames.has(input.command)) return
-      const runtimeContext = `\n\nOKF runtime context: current UTC time is ${new Date().toISOString()}; configured bundle directory is \`${options.bundleDirectory}/\`.`
+      let extra = `\n\nOKF runtime context: current UTC time is ${new Date().toISOString()}; configured bundle directory is \`${options.bundleDirectory}/\`.`
+      if (options.captureEvidence && input.command === "okf-update" && input.arguments.startsWith("session")) {
+        extra += drainEvidence(input.sessionID)
+      }
       const textPart = output.parts.find((part) => part.type === "text")
-      if (textPart?.type === "text") textPart.text += runtimeContext
+      if (textPart?.type === "text") textPart.text += extra
+    },
+
+    "tool.execute.after": async (input, output) => {
+      if (!options.captureEvidence) return
+      try {
+        bufferEvidence(input.sessionID, input.tool, String(output.title ?? ""))
+      } catch (error) {
+        await logCaptureError("OKF evidence buffering failed", { error: String(error) })
+      }
+    },
+
+    "experimental.session.compacting": async (_input, output) => {
+      const behavior = options.captureOn.compacting
+      if (behavior === "off") return
+      try {
+        if (!(await bundleExists())) return
+        if (behavior === "notify") {
+          await toastCaptureNudge(
+            "Context is being compacted. Run /okf-update session afterwards to capture durable knowledge.",
+          )
+          return
+        }
+        output.context.push(
+          `OKF knowledge bundle: this project keeps durable knowledge in \`${options.bundleDirectory}/\`. Preserve in the compaction summary any decisions, open questions, and domain facts worth capturing to the bundle after compaction (via /okf-update session). Do not drop them as chatter.`,
+        )
+      } catch (error) {
+        await logCaptureError("OKF compacting hook failed", { error: String(error) })
+      }
     },
 
     event: async ({ event }) => {
+      if (event.type === "message.updated" && event.properties.info.role === "user") {
+        const sessionID = event.properties.info.sessionID
+        if (captureStates.get(sessionID) !== "capturing") captureStates.set(sessionID, "armed")
+      }
+      if (event.type === "session.idle") {
+        try {
+          await handleSessionIdle(event.properties.sessionID)
+        } catch (error) {
+          await logCaptureError("OKF session.idle handler failed", { error: String(error) })
+        }
+      }
+      if (event.type === "session.compacted") {
+        try {
+          await handleSessionCompacted(event.properties.sessionID)
+        } catch (error) {
+          await logCaptureError("OKF session.compacted handler failed", { error: String(error) })
+        }
+      }
+      if (event.type === "todo.updated") {
+        try {
+          await handleTodoUpdated(event.properties.sessionID, event.properties.todos)
+        } catch (error) {
+          await logCaptureError("OKF todo.updated handler failed", { error: String(error) })
+        }
+      }
+      if (event.type === "session.deleted") {
+        captureStates.delete(event.properties.info.id)
+        evidenceBuffers.delete(event.properties.info.id)
+      }
       if (!options.validateOnEdit) return
       let file: string | undefined
       if (event.type === "file.edited") file = event.properties.file

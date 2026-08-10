@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    [
+      "file:///Users/kaishin/Developer/Circle/opencode-okf/dist/index.js",
+      {
+        "bundleDirectory": "okf",
+        "validateOnEdit": true,
+        "captureOn": {
+          "sessionIdle": "off",
+          "compacting": "auto"
+        }
+      }
+    ]
+  ]
+}

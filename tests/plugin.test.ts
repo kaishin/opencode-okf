@@ -11,9 +11,11 @@ async function makeContext() {
   const root = await mkdtemp(join(tmpdir(), "opencode-okf-plugin-"))
   temporaryDirectories.push(root)
   const toasts: Array<{ body?: { message: string } }> = []
+  const commands: Array<{ path: { id: string }; body?: { command: string; arguments: string } }> = []
   return {
     root,
     toasts,
+    commands,
     input: {
       client: {
         tui: {
@@ -23,6 +25,13 @@ async function makeContext() {
           },
         },
         app: { log: async () => ({}) },
+        session: {
+          get: async () => ({ data: { id: "session-1" } }),
+          command: async (value: { path: { id: string }; body?: { command: string; arguments: string } }) => {
+            commands.push(value)
+            return {}
+          },
+        },
       },
       directory: root,
       worktree: root,
@@ -233,6 +242,353 @@ describe("OKFPlugin", () => {
     expect(toasts).toHaveLength(1)
     expect(toasts[0]?.body?.message).toContain("1 OKF conformance error")
     await hooks.dispose?.()
+  })
+
+  test("does nothing on session.idle when captureOn is unset", async () => {
+    const { root, toasts, commands, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never)
+
+    await hooks.event?.({
+      event: { type: "message.updated", properties: { info: { role: "user", sessionID: "session-1" } } },
+    } as never)
+    await hooks.event?.({ event: { type: "session.idle", properties: { sessionID: "session-1" } } } as never)
+
+    expect(toasts).toHaveLength(0)
+    expect(commands).toHaveLength(0)
+  })
+
+  test("notifies once per user activity when captureOn.sessionIdle is notify", async () => {
+    const { root, toasts, commands, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never, { captureOn: { sessionIdle: "notify" } })
+    const userMessage = {
+      event: { type: "message.updated", properties: { info: { role: "user", sessionID: "session-1" } } },
+    }
+    const idle = { event: { type: "session.idle", properties: { sessionID: "session-1" } } }
+
+    await hooks.event?.(userMessage as never)
+    await hooks.event?.(idle as never)
+    await hooks.event?.(idle as never)
+
+    expect(toasts).toHaveLength(1)
+    expect(toasts[0]?.body?.message).toContain("/okf-update session")
+    expect(commands).toHaveLength(0)
+
+    await hooks.event?.(userMessage as never)
+    await hooks.event?.(idle as never)
+
+    expect(toasts).toHaveLength(2)
+  })
+
+  test("skips the idle nudge when no bundle exists", async () => {
+    const { toasts, commands, input } = await makeContext()
+    const hooks = await OKFPlugin(input as never, { captureOn: { sessionIdle: "auto" } })
+
+    await hooks.event?.({
+      event: { type: "message.updated", properties: { info: { role: "user", sessionID: "session-1" } } },
+    } as never)
+    await hooks.event?.({ event: { type: "session.idle", properties: { sessionID: "session-1" } } } as never)
+
+    expect(toasts).toHaveLength(0)
+    expect(commands).toHaveLength(0)
+  })
+
+  test("auto-captures on idle without looping on its own command", async () => {
+    const { root, commands, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never, { captureOn: { sessionIdle: "auto" } })
+    const idle = { event: { type: "session.idle", properties: { sessionID: "session-1" } } }
+
+    await hooks.event?.({
+      event: { type: "message.updated", properties: { info: { role: "user", sessionID: "session-1" } } },
+    } as never)
+    await hooks.event?.(idle as never)
+
+    expect(commands).toHaveLength(1)
+    expect(commands[0]?.body?.command).toBe("okf-update")
+    expect(commands[0]?.body?.arguments).toBe("session")
+
+    // The capture command posts its own user message; that must not re-arm.
+    await hooks.event?.({
+      event: { type: "message.updated", properties: { info: { role: "user", sessionID: "session-1" } } },
+    } as never)
+    await hooks.event?.(idle as never)
+    await hooks.event?.(idle as never)
+
+    expect(commands).toHaveLength(1)
+
+    // A real user message after the capture re-arms the session.
+    await hooks.event?.({
+      event: { type: "message.updated", properties: { info: { role: "user", sessionID: "session-1" } } },
+    } as never)
+    await hooks.event?.(idle as never)
+
+    expect(commands).toHaveLength(2)
+  })
+
+  test("injects OKF preservation context on compaction when captureOn.compacting is auto", async () => {
+    const { root, toasts, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never, {
+      bundleDirectory: "okf",
+      captureOn: { compacting: "auto" },
+    })
+    const output = { context: [] as string[] }
+
+    await hooks["experimental.session.compacting"]?.({ sessionID: "session-1" }, output as never)
+
+    expect(output.context).toHaveLength(1)
+    expect(output.context[0]).toContain("`okf/`")
+    expect(output.context[0]).toContain("/okf-update session")
+    expect(toasts).toHaveLength(0)
+  })
+
+  test("nudges on compaction when captureOn.compacting is notify", async () => {
+    const { root, toasts, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never, { captureOn: { compacting: "notify" } })
+    const output = { context: [] as string[] }
+
+    await hooks["experimental.session.compacting"]?.({ sessionID: "session-1" }, output as never)
+
+    expect(output.context).toHaveLength(0)
+    expect(toasts).toHaveLength(1)
+    expect(toasts[0]?.body?.message).toContain("compacted")
+  })
+
+  test("leaves compaction untouched when captureOn.compacting is off", async () => {
+    const { root, toasts, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never)
+    const output = { context: [] as string[] }
+
+    await hooks["experimental.session.compacting"]?.({ sessionID: "session-1" }, output as never)
+
+    expect(output.context).toHaveLength(0)
+    expect(toasts).toHaveLength(0)
+  })
+
+  test("notifies after compaction when captureOn.compacted is notify", async () => {
+    const { root, toasts, commands, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never, { captureOn: { compacted: "notify" } })
+
+    await hooks.event?.({ event: { type: "session.compacted", properties: { sessionID: "session-1" } } } as never)
+
+    expect(toasts).toHaveLength(1)
+    expect(toasts[0]?.body?.message).toContain("compacted")
+    expect(commands).toHaveLength(0)
+  })
+
+  test("auto-captures on every compaction without re-arming idle", async () => {
+    const { root, toasts, commands, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never, {
+      captureOn: { compacted: "auto", sessionIdle: "auto" },
+    })
+    const compacted = { event: { type: "session.compacted", properties: { sessionID: "session-1" } } }
+
+    // No user activity required: compaction itself is the trigger.
+    await hooks.event?.(compacted as never)
+    expect(commands).toHaveLength(1)
+
+    // The capture command's own user message must not re-arm the idle moment.
+    await hooks.event?.({
+      event: { type: "message.updated", properties: { info: { role: "user", sessionID: "session-1" } } },
+    } as never)
+    await hooks.event?.({ event: { type: "session.idle", properties: { sessionID: "session-1" } } } as never)
+    expect(commands).toHaveLength(1)
+
+    // A second compaction fires again (consumed on idle above, but compacted needs no arming).
+    await hooks.event?.(compacted as never)
+    expect(commands).toHaveLength(2)
+    expect(toasts.length).toBeGreaterThan(0)
+  })
+
+  test("does nothing after compaction when captureOn.compacted is off", async () => {
+    const { root, toasts, commands, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never)
+
+    await hooks.event?.({ event: { type: "session.compacted", properties: { sessionID: "session-1" } } } as never)
+
+    expect(toasts).toHaveLength(0)
+    expect(commands).toHaveLength(0)
+  })
+
+  test("notifies when all todos complete and captureOn.todoComplete is notify", async () => {
+    const { root, toasts, commands, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never, { captureOn: { todoComplete: "notify" } })
+    const todos = (statuses: string[]) => ({
+      event: {
+        type: "todo.updated",
+        properties: {
+          sessionID: "session-1",
+          todos: statuses.map((status, index) => ({ id: `${index}`, content: "task", status, priority: "medium" })),
+        },
+      },
+    })
+
+    await hooks.event?.({
+      event: { type: "message.updated", properties: { info: { role: "user", sessionID: "session-1" } } },
+    } as never)
+    await hooks.event?.(todos(["completed", "in_progress"]) as never)
+    expect(toasts).toHaveLength(0)
+
+    await hooks.event?.(todos(["completed", "cancelled"]) as never)
+    expect(toasts).toHaveLength(1)
+    expect(toasts[0]?.body?.message).toContain("todos complete")
+    expect(commands).toHaveLength(0)
+
+    // Once per activity stretch: a repeated all-complete update stays silent.
+    await hooks.event?.(todos(["completed", "cancelled"]) as never)
+    expect(toasts).toHaveLength(1)
+  })
+
+  test("auto-captures on todo completion and ignores todo updates during capture", async () => {
+    const { root, commands, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never, { captureOn: { todoComplete: "auto" } })
+    const allDone = {
+      event: {
+        type: "todo.updated",
+        properties: {
+          sessionID: "session-1",
+          todos: [{ id: "1", content: "task", status: "completed", priority: "high" }],
+        },
+      },
+    }
+
+    // Not armed yet: no user message seen.
+    await hooks.event?.(allDone as never)
+    expect(commands).toHaveLength(0)
+
+    await hooks.event?.({
+      event: { type: "message.updated", properties: { info: { role: "user", sessionID: "session-1" } } },
+    } as never)
+    await hooks.event?.(allDone as never)
+    expect(commands).toHaveLength(1)
+
+    // The capture command's own todo writes must not loop.
+    await hooks.event?.(allDone as never)
+    expect(commands).toHaveLength(1)
+  })
+
+  test("ignores empty todo lists and non-user sessions for todoComplete", async () => {
+    const { root, toasts, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never, { captureOn: { todoComplete: "notify" } })
+
+    await hooks.event?.({
+      event: { type: "message.updated", properties: { info: { role: "user", sessionID: "session-1" } } },
+    } as never)
+    await hooks.event?.({
+      event: { type: "todo.updated", properties: { sessionID: "session-1", todos: [] } },
+    } as never)
+
+    expect(toasts).toHaveLength(0)
+  })
+
+  test("injects buffered tool evidence into okf-update session prompts", async () => {
+    const { input } = await makeContext()
+    const hooks = await OKFPlugin(input as never, { captureEvidence: true })
+    const runTool = (title: string) =>
+      hooks["tool.execute.after"]?.(
+        { tool: "edit", sessionID: "session-1", callID: "c", args: {} },
+        { title, output: "", metadata: {} } as never,
+      )
+
+    await runTool("src/index.ts")
+    await runTool("tests/plugin.test.ts")
+
+    const output = { parts: [{ type: "text", text: "prompt" }] }
+    await hooks["command.execute.before"]?.(
+      { command: "okf-update", sessionID: "session-1", arguments: "session" },
+      output as never,
+    )
+
+    expect(output.parts[0]?.text).toContain("Buffered session evidence (2 recent tool call(s), oldest first)")
+    expect(output.parts[0]?.text).toContain("- edit: src/index.ts")
+    expect(output.parts[0]?.text).toContain("- edit: tests/plugin.test.ts")
+
+    // Evidence is drained once consumed.
+    const second = { parts: [{ type: "text", text: "prompt" }] }
+    await hooks["command.execute.before"]?.(
+      { command: "okf-update", sessionID: "session-1", arguments: "session" },
+      second as never,
+    )
+    expect(second.parts[0]?.text).not.toContain("Buffered session evidence")
+
+    // Other commands and non-session modes never see evidence.
+    await runTool("src/capture.ts")
+    const other = { parts: [{ type: "text", text: "prompt" }] }
+    await hooks["command.execute.before"]?.(
+      { command: "okf-update", sessionID: "session-1", arguments: "diff" },
+      other as never,
+    )
+    expect(other.parts[0]?.text).not.toContain("Buffered session evidence")
+  })
+
+  test("does not buffer evidence when captureEvidence is off", async () => {
+    const { input } = await makeContext()
+    const hooks = await OKFPlugin(input as never)
+
+    await hooks["tool.execute.after"]?.(
+      { tool: "edit", sessionID: "session-1", callID: "c", args: {} },
+      { title: "src/index.ts", output: "", metadata: {} } as never,
+    )
+    const output = { parts: [{ type: "text", text: "prompt" }] }
+    await hooks["command.execute.before"]?.(
+      { command: "okf-update", sessionID: "session-1", arguments: "session" },
+      output as never,
+    )
+
+    expect(output.parts[0]?.text).not.toContain("Buffered session evidence")
+  })
+
+  test("clears per-session state when the session is deleted", async () => {
+    const { root, commands, input } = await makeContext()
+    await mkdir(join(root, "okf"))
+    const hooks = await OKFPlugin(input as never, { captureOn: { sessionIdle: "auto" }, captureEvidence: true })
+
+    await hooks.event?.({
+      event: { type: "message.updated", properties: { info: { role: "user", sessionID: "session-1" } } },
+    } as never)
+    await hooks["tool.execute.after"]?.(
+      { tool: "edit", sessionID: "session-1", callID: "c", args: {} },
+      { title: "src/index.ts", output: "", metadata: {} } as never,
+    )
+    await hooks.event?.({
+      event: { type: "session.deleted", properties: { info: { id: "session-1" } } },
+    } as never)
+
+    await hooks.event?.({ event: { type: "session.idle", properties: { sessionID: "session-1" } } } as never)
+    expect(commands).toHaveLength(0)
+
+    const output = { parts: [{ type: "text", text: "prompt" }] }
+    await hooks["command.execute.before"]?.(
+      { command: "okf-update", sessionID: "session-1", arguments: "session" },
+      output as never,
+    )
+    expect(output.parts[0]?.text).not.toContain("Buffered session evidence")
+  })
+
+  test("rejects invalid captureOn values", async () => {
+    const { input } = await makeContext()
+    await expect(OKFPlugin(input as never, { captureOn: "auto" } as never)).rejects.toThrow(
+      "`captureOn` must be an object",
+    )
+    await expect(OKFPlugin(input as never, { captureOn: { sessionIdle: "always" } } as never)).rejects.toThrow(
+      '`captureOn.sessionIdle` must be "off", "notify", or "auto"',
+    )
+    await expect(OKFPlugin(input as never, { captureOn: { compacted: 1 } } as never)).rejects.toThrow(
+      '`captureOn.compacted` must be "off", "notify", or "auto"',
+    )
+    await expect(OKFPlugin(input as never, { captureEvidence: "yes" } as never)).rejects.toThrow(
+      "`captureEvidence` must be a boolean",
+    )
   })
 
   test("rejects an invalid configured path", async () => {
