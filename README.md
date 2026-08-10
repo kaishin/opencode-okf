@@ -10,9 +10,10 @@ The authoring commands make OpenCode inspect repository evidence before it write
 - `/okf-update [session|diff]` updates concepts and indexes from full repo (no arg), git diff, or the current session.
 - `/okf-validate` reports conformance errors and quality warnings, with opt-in fixes.
 - `/okf-compact [all]` prunes logs, or the whole bundle (concepts, indexes, logs) with `all`.
-- `okf_validate`, `okf_capture`, and `okf_diff` give agents deterministic OKF and git-diff tools.
+- `okf_inspect`, `okf_init`, `okf_validate`, `okf_capture`, and `okf_diff` give agents deterministic OKF and git-diff tools.
 - A command hook supplies the exact UTC timestamp to OKF workflows.
 - A debounced file-event hook warns when edits make the bundle nonconformant.
+- A system-prompt hook injects OKF authoring guidance when the conversation mentions OKF.
 - Existing commands and producer-defined OKF frontmatter are preserved.
 
 ## Install

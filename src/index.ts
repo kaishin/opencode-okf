@@ -2,6 +2,8 @@ import { relative, resolve, sep } from "node:path"
 import { type Plugin, tool } from "@opencode-ai/plugin"
 import { captureSession, formatCaptureReport } from "./capture.js"
 import { diffSources, formatDiffReport } from "./diff.js"
+import { initializeBundle, summarizeInit } from "./init.js"
+import { formatInspectionReport, inspectProject } from "./inspect.js"
 import { compactPrompt, initPrompt, updatePrompt, validatePrompt } from "./prompts.js"
 import {
   formatValidationReport,
@@ -33,6 +35,7 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
   const options = readOptions(rawOptions)
   const configuredRoot = resolveBundlePath(worktree, options.bundleDirectory)
   const commandNames = new Set(["okf-init", "okf-update", "okf-validate", "okf-compact"])
+  const okfPromptPattern = /(?:\bOKF\b|open knowledge format|\bokf\/)/i
   let validationTimer: ReturnType<typeof setTimeout> | undefined
   let lastErrorSignature = ""
 
@@ -88,6 +91,62 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
     },
 
     tool: {
+      okf_inspect: tool({
+        description:
+          "Read-only inventory of likely product docs, schemas, analytics, and dashboard sources before authoring an OKF bundle.",
+        args: {
+          path: tool.schema
+            .string()
+            .optional()
+            .describe("Project directory to inspect, relative to the worktree. Defaults to the worktree root."),
+          maxFiles: tool.schema
+            .number()
+            .int()
+            .min(1)
+            .max(5000)
+            .optional()
+            .describe("Maximum files to scan; defaults to 500."),
+        },
+        async execute(args, context) {
+          const report = await inspectProject(
+            resolve(context.worktree, args.path ?? "."),
+            args.maxFiles ?? 500,
+          )
+          return {
+            title: `${report.candidates.length} likely knowledge source(s)`,
+            output: formatInspectionReport(report),
+            metadata: {
+              rootPath: report.rootPath,
+              scannedFiles: report.scannedFiles,
+              truncated: report.truncated,
+              candidates: report.candidates.length,
+            },
+          }
+        },
+      }),
+      okf_init: tool({
+        description:
+          "Create missing OKF reserved files (`index.md`, `log.md`) without overwriting existing files.",
+        args: {
+          path: tool.schema
+            .string()
+            .optional()
+            .describe(`Bundle path relative to the worktree. Defaults to ${options.bundleDirectory}.`),
+        },
+        async execute(args, context) {
+          const root = resolveBundlePath(context.worktree, args.path ?? options.bundleDirectory)
+          const report = await initializeBundle(root)
+          return {
+            title: "OKF bundle initialized",
+            output: summarizeInit(report),
+            metadata: {
+              bundlePath: report.bundlePath,
+              created: report.created,
+              existing: report.existing,
+            },
+          }
+        },
+      }),
       okf_diff: tool({
         description:
           "List files changed since a git ref (default HEAD) so OKF bundle work can be scoped to uncommitted or recent changes.",
@@ -201,6 +260,13 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
       }),
     },
 
+    "experimental.chat.system.transform": async (_input, output) => {
+      if (!okfPromptPattern.test(output.system.join("\n"))) return
+      output.system.push(
+        `OKF workflow: inspect available product, schema, analytics, and dashboard sources first (e.g. via okf_inspect). Prefer concept files and indexes for durable knowledge; use log.md for history and open questions. Record unknown facts in log.md under "Questions for maintainers"; never invent business rules, SQL, or dashboard behavior. Non-reserved concept files need YAML frontmatter and bundle-relative links. Validate with okf_validate before declaring the bundle complete.`,
+      )
+    },
+
     "command.execute.before": async (input, output) => {
       if (!commandNames.has(input.command)) return
       const runtimeContext = `\n\nOKF runtime context: current UTC time is ${new Date().toISOString()}; configured bundle directory is \`${options.bundleDirectory}/\`.`
@@ -229,5 +295,9 @@ export { captureSession, formatCaptureReport } from "./capture.js"
 export type { CaptureOptions, CaptureReport } from "./capture.js"
 export { diffSources, formatDiffReport } from "./diff.js"
 export type { ChangedFile, DiffOptions, DiffReport, FileStatus } from "./diff.js"
+export { formatInspectionReport, inspectProject } from "./inspect.js"
+export type { InspectionReport } from "./inspect.js"
+export { initializeBundle, summarizeInit } from "./init.js"
+export type { InitReport } from "./init.js"
 export { formatValidationReport, resolveBundlePath, validateBundle } from "./validator.js"
 export type { ValidationIssue, ValidationReport, ValidationSeverity } from "./validator.js"

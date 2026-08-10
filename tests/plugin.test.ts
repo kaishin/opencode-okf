@@ -100,6 +100,78 @@ describe("OKFPlugin", () => {
     }
   })
 
+  test("exposes a working inspect tool", async () => {
+    const { root, input } = await makeContext()
+    await mkdir(join(root, "docs"), { recursive: true })
+    await writeFile(join(root, "docs", "revenue.md"), "# Revenue\n")
+    await writeFile(join(root, "schema.sql"), "CREATE TABLE users (id INT);\n")
+    const hooks = await OKFPlugin(input as never)
+
+    const result = await hooks.tool?.okf_inspect?.execute(
+      {},
+      { worktree: root, directory: root } as never,
+    )
+
+    expect(typeof result).toBe("object")
+    if (typeof result === "object") {
+      expect(result.title).toContain("likely knowledge source")
+      expect(result.output).toContain("[source directory] docs/")
+      expect(result.metadata?.candidates).toBeGreaterThan(0)
+    }
+  })
+
+  test("exposes a working init tool that does not overwrite", async () => {
+    const { root, input } = await makeContext()
+    await mkdir(join(root, "okf"), { recursive: true })
+    await writeFile(join(root, "okf", "index.md"), "# Existing\n")
+    const hooks = await OKFPlugin(input as never)
+
+    const result = await hooks.tool?.okf_init?.execute(
+      {},
+      { worktree: root, directory: root } as never,
+    )
+
+    expect(typeof result).toBe("object")
+    if (typeof result === "object") {
+      expect(result.title).toBe("OKF bundle initialized")
+      expect(result.output).toContain("created log.md")
+      expect(result.output).toContain("kept existing index.md")
+      expect(result.metadata?.created).toEqual(["log.md"])
+      expect(result.metadata?.existing).toEqual(["index.md"])
+    }
+
+    const index = await readFile(join(root, "okf", "index.md"), "utf8")
+    expect(index).toBe("# Existing\n")
+  })
+
+  test("injects OKF guidance into system prompt when relevant", async () => {
+    const { input } = await makeContext()
+    const hooks = await OKFPlugin(input as never)
+    const systemOutput = { system: ["Base prompt."] }
+    const otherOutput = { system: ["Base prompt."] }
+
+    await hooks["experimental.chat.system.transform"]?.(
+      { sessionID: "s", model: {} as never },
+      { ...systemOutput, system: [...systemOutput.system] } as never,
+    )
+    await hooks["experimental.chat.system.transform"]?.(
+      { sessionID: "s", model: {} as never },
+      otherOutput as never,
+    )
+
+    const okfModified = systemOutput.system.join("\n")
+    const unmodified = otherOutput.system.join("\n")
+    expect(unmodified).not.toContain("OKF workflow:")
+    // The test above mutates the original; use a fresh copy for the OKF case.
+    const okfInput = { system: ["Base prompt mentioning OKF bundle."] }
+    await hooks["experimental.chat.system.transform"]?.(
+      { sessionID: "s", model: {} as never },
+      okfInput as never,
+    )
+    expect(okfInput.system.join("\n")).toContain("OKF workflow:")
+    expect(okfInput.system.join("\n")).toContain("okf_inspect")
+  })
+
   test("exposes a working diff tool", async () => {
     const { root, input } = await makeContext()
     const git = (args: string[]) =>
