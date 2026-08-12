@@ -192,6 +192,18 @@ bun test
 bun run build
 ```
 
+## Publishing
+
+Pushing a version tag publishes to npm via [trusted publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC, no stored token):
+
+```sh
+# bump "version" in package.json first, then:
+git tag v0.6.1
+git push origin v0.6.1
+```
+
+The workflow fails if the tag does not match the `version` field in `package.json`.
+
 ## References
 
 - [OpenCode plugin documentation](https://opencode.ai/docs/plugins/)
