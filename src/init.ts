@@ -32,6 +32,10 @@ export async function initializeBundle(bundlePath: string): Promise<InitReport> 
   await writeIfMissing(
     resolve(root, "index.md"),
     [
+      "---",
+      "okf_version: \"0.2\"",
+      "---",
+      "",
       "# Open Knowledge Bundle",
       "",
       "This bundle records curated knowledge about this project in the Open Knowledge Format (OKF).",

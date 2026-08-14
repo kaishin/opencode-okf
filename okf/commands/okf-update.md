@@ -24,11 +24,13 @@ Any first token other than `session` or `diff` is free-form focus under **repo**
 
 # Behavior
 
-1. Read the current bundle first
-2. Gather evidence per source mode
-3. Write **concept files and indexes** for durable knowledge (session mode is not log-only)
-4. Use `log.md` / `okf_capture` only for history, open questions, or decisions that do not belong in a concept
-5. Run `okf_validate`
+1. Read the current bundle and root `okf_version` first
+2. Fetch the authoritative current specification with `okf_spec`
+3. If the bundle targets an older version, recommend `/okf-upgrade` instead of silently performing a bundle-wide migration during a focused update
+4. Gather evidence per source mode
+5. Write **concept files and indexes** for durable knowledge (session mode is not log-only)
+6. Use `log.md` / `okf_capture` only for history, open questions, or decisions that do not belong in a concept
+7. Run `okf_validate`
 
 # Related
 

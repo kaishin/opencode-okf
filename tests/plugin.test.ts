@@ -56,6 +56,8 @@ describe("OKFPlugin", () => {
     expect(config.command["okf-update"]?.template).toContain("Hard source mode")
     expect(config.command["okf-update"]?.template).toContain("`session`")
     expect(config.command["okf-update"]?.template).toContain("`diff`")
+    expect(config.command["okf-update"]?.template).toContain("/okf-upgrade")
+    expect(config.command["okf-upgrade"]?.template).toContain("okf_spec")
     expect(config.command["okf-validate"]?.template).toContain("okf_validate")
     expect(config.command["okf-capture"]).toBeUndefined()
     expect(config.command["okf-diff"]).toBeUndefined()

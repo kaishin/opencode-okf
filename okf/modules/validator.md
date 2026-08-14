@@ -1,7 +1,7 @@
 ---
 type: Module
 title: Validator
-description: Deterministic OKF v0.1 bundle validator used by tools, capture, and edit hooks.
+description: Deterministic OKF v0.2-aware bundle validator used by tools, capture, and edit hooks.
 tags: [validation, okf, conformance]
 timestamp: 2026-08-03T09:47:54Z
 ---
@@ -54,8 +54,10 @@ Bundle:
 
 # Warnings (non-failing)
 
-- Missing recommended fields: `title`, `description`, `tags`, `timestamp`
-- Malformed optional fields (`title`/`description` not non-empty strings; `tags` not list of non-empty strings; `timestamp` not ISO 8601 datetime; `resource` not valid URI)
+- Missing recommended fields: `title`, `description`, `tags`, and `generated` when no legacy `timestamp` fallback exists
+- Legacy `timestamp` values that should migrate to `generated: { by, at }`; malformed legacy timestamps
+- Malformed optional v0.2 fields: `generated`, mapping-or-list `verified`, actor identifiers, `sources` and credibility signals, `usage_window`, `status`, `stale_after`, `parameters`, `executor`, and `attester`
+- Malformed `resource` values; absolute URLs and bundle-relative paths are accepted
 - Empty concept body
 - Broken or escaping internal Markdown links
 
@@ -70,13 +72,15 @@ Internal targets (not `#…`, not `//…`, not scheme URLs):
 - Fragment and query stripped before existence check
 - Existence checked against walked filesystem entries
 
-# Timestamp format accepted
+# v0.2-specific error
 
-ISO 8601 datetime matching:
+A concept with `type: Attested Computation` must carry a non-empty string `runtime`. Optional computation contract fields produce warnings when malformed.
 
-`YYYY-MM-DDTHH:mm:ss` optional fractional seconds, then `Z` or a `±HH:mm` offset
+# Date and actor formats
 
-with a real calendar date and parseable by `Date.parse`.
+Datetime values in `generated.at`, `verified[].at`, and legacy `timestamp` use ISO 8601: `YYYY-MM-DDTHH:mm:ss`, optional fractional seconds, then `Z` or a `±HH:mm` offset, with a real calendar date. `stale_after`, source `last_modified`, and usage-window bounds use `YYYY-MM-DD`.
+
+Actors use `<producer>/<version>`, `human:<id>`, or `process:<id>`.
 
 # Related
 

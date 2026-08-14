@@ -1,6 +1,6 @@
 # OKF Rules
 
-Rules as implemented by this package's validator and authoring prompts. External OKF specification: [OKF v0.1 SPEC](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md).
+Rules as implemented by this package's validator and authoring prompts. Authoritative external specification: [current OKF SPEC](https://raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/refs/heads/main/okf/SPEC.md). The plugin fetches this document at runtime rather than relying on a bundled copy.
 
 * [Conformance](conformance.md) - What makes validation pass or fail
 * [Frontmatter](frontmatter.md) - Required and recommended concept metadata

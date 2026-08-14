@@ -5,7 +5,8 @@ import { captureSession, formatCaptureReport } from "./capture.js"
 import { diffSources, formatDiffReport } from "./diff.js"
 import { initializeBundle, summarizeInit } from "./init.js"
 import { formatInspectionReport, inspectProject } from "./inspect.js"
-import { compactPrompt, initPrompt, updatePrompt, validatePrompt } from "./prompts.js"
+import { compactPrompt, initPrompt, updatePrompt, upgradePrompt, validatePrompt } from "./prompts.js"
+import { fetchOKFSpec, formatSpecReport } from "./spec.js"
 import {
   formatValidationReport,
   isPathInside,
@@ -80,7 +81,7 @@ function readOptions(
 export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) => {
   const options = readOptions(rawOptions)
   const configuredRoot = resolveBundlePath(worktree, options.bundleDirectory)
-  const commandNames = new Set(["okf-init", "okf-update", "okf-validate", "okf-compact"])
+  const commandNames = new Set(["okf-init", "okf-update", "okf-upgrade", "okf-validate", "okf-compact"])
   const okfPromptPattern = /(?:\bOKF\b|open knowledge format|\bokf\/)/i
   let validationTimer: ReturnType<typeof setTimeout> | undefined
   let lastErrorSignature = ""
@@ -248,6 +249,10 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
         description: "Update OKF bundle from repo, git diff, or session (args: [session|diff])",
         template: updatePrompt(options.bundleDirectory),
       }
+      config.command["okf-upgrade"] ??= {
+        description: "Upgrade the entire OKF bundle to the latest fetched specification",
+        template: upgradePrompt(options.bundleDirectory),
+      }
       config.command["okf-validate"] ??= {
         description: "Validate an OKF bundle and optionally fix it",
         template: validatePrompt(options.bundleDirectory),
@@ -259,6 +264,18 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
     },
 
     tool: {
+      okf_spec: tool({
+        description: "Fetch the authoritative current Open Knowledge Format specification from GoogleCloudPlatform/knowledge-catalog.",
+        args: {},
+        async execute() {
+          const spec = await fetchOKFSpec()
+          return {
+            title: `OKF specification v${spec.version}`,
+            output: formatSpecReport(spec),
+            metadata: { version: spec.version, url: spec.url },
+          }
+        },
+      }),
       okf_inspect: tool({
         description:
           "Read-only inventory of likely product docs, schemas, analytics, and dashboard sources before authoring an OKF bundle.",
@@ -402,7 +419,7 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
       }),
       okf_validate: tool({
         description:
-          "Validate an Open Knowledge Format v0.1 bundle. Reports conformance errors and non-blocking quality or broken-link warnings.",
+          "Validate an Open Knowledge Format v0.2 bundle, including provenance, trust, lifecycle, and Attested Computation fields. Legacy v0.1 metadata is tolerated with migration warnings.",
         args: {
           path: tool.schema
             .string()
@@ -526,6 +543,8 @@ export type { ChangedFile, DiffOptions, DiffReport, FileStatus } from "./diff.js
 export { formatInspectionReport, inspectProject } from "./inspect.js"
 export type { InspectionReport } from "./inspect.js"
 export { initializeBundle, summarizeInit } from "./init.js"
+export { fetchOKFSpec, formatSpecReport, OKF_SPEC_URL } from "./spec.js"
+export type { OKFSpec } from "./spec.js"
 export type { InitReport } from "./init.js"
 export { formatValidationReport, resolveBundlePath, validateBundle } from "./validator.js"
 export type { ValidationIssue, ValidationReport, ValidationSeverity } from "./validator.js"

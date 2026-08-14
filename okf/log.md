@@ -1,5 +1,10 @@
 # Bundle Update Log
 
+## 2026-08-13
+
+* **Upgrade**: Upgraded the bundle declaration and internal documentation to the fetched authoritative OKF v0.2 specification; documented `okf_spec`, `/okf-upgrade`, update-time version detection, and v0.2-aware validation.
+* **Migration note**: Preserved legacy concept `timestamp` fields because the bundle does not record the actors required for lossless `generated: { by, at }` migration; the v0.2 spec permits consumers to use this fallback.
+
 ## 2026-08-10
 
 * **Session: More capture moments and evidence buffering** (2026-08-10T11:11:12.952Z)

@@ -15,7 +15,7 @@ timestamp: 2026-08-10T11:02:27Z
 1. Parse plugin options (`bundleDirectory`, `validateOnEdit`, `captureEvidence`, `captureOn`).
 2. Resolve the configured bundle root inside the worktree via `resolveBundlePath`.
 3. Register slash commands in `config` without overwriting existing user-defined commands (`??=`).
-4. Expose tools: `okf_validate`, `okf_capture`, `okf_diff`, `okf_inspect`, `okf_init`.
+4. Expose tools: `okf_validate`, `okf_capture`, `okf_diff`, `okf_inspect`, `okf_init`, `okf_spec`.
 5. On `command.execute.before` for OKF commands, append runtime context (UTC ISO timestamp and configured bundle directory); for `okf-update session`, also drain buffered tool evidence when `captureEvidence` is on.
 6. On `experimental.chat.system.transform`, inject OKF authoring guidance when the system prompt mentions OKF.
 7. On `file.edited` / `file.watcher.updated`, optionally debounce-validate (400ms) when the file is inside the bundle root; toast + log only on new conformance errors.
@@ -25,9 +25,9 @@ timestamp: 2026-08-10T11:02:27Z
 
 # Command names
 
-`okf-init`, `okf-update`, `okf-validate`, `okf-compact`.
+`okf-init`, `okf-update`, `okf-upgrade`, `okf-validate`, `okf-compact`.
 
-Tools (not slash commands): `okf_validate`, `okf_capture`, `okf_diff`, `okf_inspect`, `okf_init`.
+Tools (not slash commands): `okf_validate`, `okf_capture`, `okf_diff`, `okf_inspect`, `okf_init`, `okf_spec`.
 
 # Edit-validation behavior
 

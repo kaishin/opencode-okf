@@ -1,10 +1,10 @@
 ---
-okf_version: "0.1"
+okf_version: "0.2"
 ---
 
 # opencode-okf
 
-OpenCode plugin for creating, maintaining, and validating Open Knowledge Format (OKF) v0.1 bundles.
+OpenCode plugin for creating, maintaining, upgrading, and validating Open Knowledge Format (OKF) bundles against the authoritative current specification.
 
 # Sections
 

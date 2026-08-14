@@ -1,7 +1,7 @@
 ---
 type: Tool
 title: okf_validate
-description: Validate an Open Knowledge Format v0.1 bundle.
+description: Validate an Open Knowledge Format bundle with v0.2-aware field checks.
 tags: [tool, validation]
 timestamp: 2026-08-03T09:47:54Z
 ---

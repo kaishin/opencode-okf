@@ -1,7 +1,7 @@
 ---
 type: Package
 title: opencode-okf
-description: OpenCode plugin for creating, maintaining, and validating Open Knowledge Format v0.1 bundles.
+description: OpenCode plugin for creating, maintaining, upgrading, and validating Open Knowledge Format bundles.
 resource: https://www.npmjs.com/package/opencode-okf
 tags: [opencode, plugin, okf, knowledge]
 timestamp: 2026-08-03T09:47:54Z
@@ -11,7 +11,7 @@ timestamp: 2026-08-03T09:47:54Z
 
 npm package `opencode-okf` (version `0.3.0` per `package.json`). MIT-licensed TypeScript library that registers OpenCode slash commands, agent tools, and hooks for OKF workflows. Canonical published package URI is the npm page; source lives at https://github.com/kaishin/opencode-okf.
 
-Authoring commands instruct the model to inspect repository evidence before writing knowledge. The bundled validator checks OKF v0.1 format rules so conformance does not depend on the model remembering every rule.
+Authoring commands instruct the model to fetch the authoritative current OKF specification and inspect repository evidence before writing knowledge. The validator applies v0.2-aware conformance and optional-field checks so behavior does not depend on model memory.
 
 # Identity
 
@@ -37,6 +37,7 @@ Public exports from `src/index.ts`:
 - `captureSession`, `formatCaptureReport`
 - `diffSources`, `formatDiffReport`
 - `validateBundle`, `formatValidationReport`, `resolveBundlePath`
+- `fetchOKFSpec`, `formatSpecReport`, `OKF_SPEC_URL`
 - related TypeScript types
 
 # Source layout
@@ -44,7 +45,8 @@ Public exports from `src/index.ts`:
 | Path | Role |
 | --- | --- |
 | `src/index.ts` | Plugin entry, commands, tools, hooks |
-| `src/validator.ts` | OKF v0.1 bundle validation |
+| `src/validator.ts` | OKF v0.2-aware bundle validation |
+| `src/spec.ts` | Authoritative specification fetching and version extraction |
 | `src/capture.ts` | Session capture into `log.md` |
 | `src/diff.ts` | Git-based change listing |
 | `src/prompts.ts` | Slash-command prompt templates |

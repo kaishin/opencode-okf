@@ -1,14 +1,15 @@
-const AUTHORING_RULES = `Follow the Open Knowledge Format v0.1 specification:
+
+const AUTHORING_RULES = `Follow the latest Open Knowledge Format specification fetched with the \`okf_spec\` tool:
 
 - Treat the configured bundle directory as the bundle root.
 - Before authoring or updating, run the \`okf_inspect\` tool and read authoritative product docs, models, schemas, migrations, analytics, APIs, runbooks, and configuration relevant to the request.
-- Store each non-reserved concept as a UTF-8 Markdown file with YAML frontmatter. A non-empty \`type\` is required. Include \`title\`, \`description\`, \`tags\`, and an ISO 8601 UTC \`timestamp\` whenever the source supports them. Include \`resource\` only when a canonical URI is known; never invent one.
+- Store each non-reserved concept as a UTF-8 Markdown file with YAML frontmatter. A non-empty \`type\` is required. Include \`title\`, \`description\`, and \`tags\` when supported. Record authorship and meaningful content changes with \`generated: { by, at }\`; use \`sources\`, \`verified\`, \`status\`, and \`stale_after\` only when supported by evidence. Include \`resource\` only when a canonical URI or bundle path is known; never invent one.
 - Reserve \`index.md\` for progressive-disclosure listings and \`log.md\` for date-grouped history. They are not concept documents. Keep log dates newest first in \`YYYY-MM-DD\` form.
 - Prefer concept files and indexes for durable knowledge. Use \`log.md\` only for history, standing decisions, and unresolved questions that do not belong in a concept.
 - Prefer bundle-relative links such as \`/tables/subscriptions.md\` between concepts.
 - Use concise, structural Markdown. Explain what a concept means, where its source lives, how it is calculated or used, caveats, and related concepts when those facts are supported.
 - Do not invent business rules, formulas, joins, schema details, ownership, dashboard behavior, or URLs. Record unresolved facts as dated \`**Question**\` entries in the nearest \`log.md\`.
-- Preserve producer-defined frontmatter fields and supported existing knowledge when updating files.
+- Preserve producer-defined frontmatter fields and supported existing knowledge when updating files. Consumers must tolerate unknown types and fields.
 - Run the \`okf_validate\` tool before finishing and resolve every conformance error. Broken links and missing recommended metadata are warnings, not reasons to fabricate content.`
 
 export type UpdateMode = "repo" | "diff" | "session"
@@ -26,7 +27,7 @@ export function parseUpdateArgs(args: string): { mode: UpdateMode; rest: string 
 export function initPrompt(bundleDirectory: string): string {
   return `Initialize an OKF bundle in \`${bundleDirectory}/\` that captures the repository's most useful domain knowledge for humans and AI agents.
 
-Before writing, run the \`okf_inspect\` tool to inventory likely sources, then inspect the repository broadly. Look for product and business documentation, application models, database schemas and migrations, analytics definitions, queries, dashboards, API contracts, runbooks, and configuration. Use focused searches and read authoritative sources; do not infer commercial semantics from names alone.
+Before writing, run the \`okf_spec\` tool to fetch and read the authoritative current specification, then run \`okf_inspect\` to inventory likely sources and inspect the repository broadly. Look for product and business documentation, application models, database schemas and migrations, analytics definitions, queries, dashboards, API contracts, runbooks, and configuration. Use focused searches and read authoritative sources; do not infer commercial semantics from names alone.
 
 Choose a hierarchy and concept types that fit the evidence. Do not force a SaaS-specific template, but prioritize core commercial and operational concepts such as metrics, tables, dashboards, APIs, and playbooks when they exist. Create useful \`index.md\` files and a root \`log.md\`.
 
@@ -92,7 +93,7 @@ Any first token other than \`session\` or \`diff\` is free-form focus under **re
 
 Arguments: $ARGUMENTS
 
-In every mode: read the bundle first; update **concepts and indexes** for durable knowledge; use \`log.md\` only for history, open questions, or decisions that do not belong in a concept. Session mode is not log-only. Never invent facts.
+In every mode: read the bundle and its root \`okf_version\` first. Fetch the current specification with \`okf_spec\`. If the bundle declares an older version, do not silently perform a bundle-wide migration during a focused update: recommend \`/okf-upgrade\` (unless the user explicitly requested migration). Update **concepts and indexes** for durable knowledge; use \`log.md\` only for history, open questions, or decisions that do not belong in a concept. Session mode is not log-only. Never invent facts.
 
 ${AUTHORING_RULES}
 
@@ -138,7 +139,7 @@ Concepts:
 - Merge duplicate or near-duplicate concepts; keep one canonical file and retarget links.
 - Remove concepts that are empty, fully superseded, or no longer supported by any evidence in the repo (only when clearly obsolete — when in doubt under \`conservative\`, keep).
 - Tighten verbose prose: drop repetition and filler while preserving meaning, sources, formulas, caveats, and related links.
-- Normalize frontmatter (required \`type\`; recommended \`title\`, \`description\`, \`tags\`, ISO 8601 UTC \`timestamp\`); never invent a \`resource\` URI.
+- Normalize frontmatter for the fetched current spec (required \`type\`; recommended \`title\`, \`description\`, \`tags\`; \`generated: { by, at }\` for authorship/change time); never invent a \`resource\`, source, verifier, or actor.
 - Do not invent business rules or facts. Prefer smallest evidence-backed edits.
 
 Indexes:
@@ -210,6 +211,21 @@ ${ALL_COMPACT_STEPS}
 ${AGGRESSIVENESS_BLOCK}
 
 When finished, run the \`okf_validate\` tool and report what was kept, merged, promoted, removed, and rewritten, plus the final validator result.`
+}
+
+export function upgradePrompt(bundleDirectory: string): string {
+  return `Upgrade the entire OKF bundle in \`${bundleDirectory}/\` to the latest authoritative specification.
+
+1. Run \`okf_spec\` first. Read the fetched specification in full and determine its version; do not rely on model memory or a bundled summary.
+2. Read every concept, \`index.md\`, and \`log.md\` in the bundle before editing.
+3. Apply the fetched spec's migration guidance across the whole bundle. For v0.1→v0.2 this includes migrating legacy \`timestamp\` to \`generated.at\` with an evidence-backed actor, migrating body \`# Citations\` lists to frontmatter \`sources\`, preserving legacy data when a safe migration is impossible, and retaining all producer-defined fields.
+4. Never invent source metadata, actors, verification events, lifecycle state, stale dates, computations, executors, or attesters. Leave unsupported optional fields absent and report anything that needs human input.
+5. Update only the bundle-root \`index.md\` frontmatter to declare the fetched \`okf_version\`. Preserve its listings and body.
+6. Run \`okf_validate\`, fix every conformance error, and report remaining warnings.
+
+Additional user guidance: $ARGUMENTS
+
+When finished, summarize all migrated files, preserved legacy data, unresolved migration questions, and the final validator result.`
 }
 
 export function validatePrompt(bundleDirectory: string): string {

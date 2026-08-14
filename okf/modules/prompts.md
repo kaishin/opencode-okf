@@ -16,6 +16,7 @@ timestamp: 2026-08-05T00:00:00Z
 | --- | --- |
 | `initPrompt(bundleDirectory)` | `/okf-init` |
 | `updatePrompt(bundleDirectory, mode?, rest?)` | `/okf-update` |
+| `upgradePrompt(bundleDirectory)` | `/okf-upgrade` |
 | `parseUpdateArgs(args)` | hard mode parser for update |
 | `compactPrompt(bundleDirectory, scope?, aggressiveness?, rest?)` | `/okf-compact` |
 | `parseCompactArgs(args)` | hard scope/aggressiveness parser |
@@ -34,13 +35,21 @@ timestamp: 2026-08-05T00:00:00Z
 Embedded in init/update prompts:
 
 - Bundle directory is the OKF root
-- Concepts: UTF-8 Markdown + YAML frontmatter; required non-empty `type`; recommended `title`, `description`, `tags`, ISO 8601 UTC `timestamp`; `resource` only when canonical URI is known
+- Fetch the authoritative current specification with `okf_spec`; concept `type` values are producer-defined and consumers tolerate unknown values
+- Concepts: UTF-8 Markdown + YAML frontmatter; required non-empty `type`; recommended `title`, `description`, and `tags`; record supported authorship/change time with `generated: { by, at }`; use `sources`, `verified`, `status`, and `stale_after` only from evidence; `resource` only when a canonical URI or bundle path is known
 - Reserve `index.md` / `log.md`; log dates newest-first `YYYY-MM-DD`
 - Prefer bundle-relative links like `/tables/subscriptions.md`
 - Concise structural Markdown; no invented business rules or URLs
 - Unresolved facts as dated `**Question**` entries in nearest `log.md`
 - Preserve producer-defined frontmatter when updating
 - Run `okf_validate` before finishing; fix conformance errors; warnings are not grounds to fabricate content
+
+# Version handling
+
+- `/okf-init` fetches the current specification before authoring.
+- `/okf-update` reads root `okf_version`, fetches the current specification, and recommends `/okf-upgrade` when the bundle is older rather than silently migrating during a focused update.
+- `/okf-upgrade` reads the fetched specification in full, walks the entire bundle, applies its migration guidance, preserves unknown fields and unsafe-to-migrate legacy data, updates root `okf_version`, and validates.
+- Prompts never invent actors, sources, verification, lifecycle metadata, computations, executors, or attesters.
 
 # Argument placeholder
 

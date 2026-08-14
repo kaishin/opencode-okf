@@ -3,7 +3,9 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
 import { parseDocument } from "yaml"
 
 const RESERVED_FILES = new Set(["index.md", "log.md"])
-const RECOMMENDED_FIELDS = ["title", "description", "tags", "timestamp"] as const
+const RECOMMENDED_FIELDS = ["title", "description", "tags"] as const
+const ACTOR_PATTERN = /^(?:human:|process:).+|[^/\s]+\/[^/\s]+$/
+const LIFECYCLE_STATUSES = new Set(["draft", "stable", "deprecated"])
 
 export type ValidationSeverity = "error" | "warning"
 
@@ -120,6 +122,34 @@ function isIsoDateTime(value: unknown): boolean {
   return Boolean(match && isCalendarDate(match[1], match[2], match[3]) && !Number.isNaN(Date.parse(value)))
 }
 
+function isIsoDate(value: unknown): boolean {
+  if (!nonEmptyString(value)) return false
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  return Boolean(match && isCalendarDate(match[1], match[2], match[3]))
+}
+
+function isMapping(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function validateActorEvent(
+  value: unknown,
+  field: string,
+  file: string,
+  warnings: ValidationIssue[],
+): void {
+  if (!isMapping(value)) {
+    issue(warnings, "warning", file, `Frontmatter field \`${field}\` should contain a \`{ by, at }\` mapping`)
+    return
+  }
+  if (!nonEmptyString(value.by) || !ACTOR_PATTERN.test(value.by)) {
+    issue(warnings, "warning", file, `Frontmatter field \`${field}.by\` should use the OKF actor convention`)
+  }
+  if (value.at !== undefined && !isIsoDateTime(value.at)) {
+    issue(warnings, "warning", file, `Frontmatter field \`${field}.at\` should be an ISO 8601 datetime`)
+  }
+}
+
 function isCalendarDate(yearValue: string | undefined, monthValue: string | undefined, dayValue: string | undefined): boolean {
   const year = Number(yearValue)
   const month = Number(monthValue)
@@ -170,18 +200,91 @@ function validateConcept(
 
   const timestamp = parsed.frontmatter.timestamp
   if (timestamp !== undefined && !isIsoDateTime(timestamp)) {
-    issue(warnings, "warning", file, "Frontmatter field `timestamp` should be an ISO 8601 datetime")
+    issue(warnings, "warning", file, "Legacy frontmatter field `timestamp` should be an ISO 8601 datetime")
+  }
+
+  const generated = parsed.frontmatter.generated
+  if (generated === undefined) {
+    if (timestamp === undefined) issue(warnings, "warning", file, "Recommended frontmatter field `generated` is missing")
+    else issue(warnings, "warning", file, "Legacy `timestamp` should be migrated to `generated: { by, at }` for OKF v0.2")
+  } else {
+    validateActorEvent(generated, "generated", file, warnings)
+    if (isMapping(generated) && generated.at === undefined) {
+      issue(warnings, "warning", file, "Recommended frontmatter field `generated.at` is missing")
+    }
+  }
+
+  const verified = parsed.frontmatter.verified
+  if (verified !== undefined) {
+    const events = Array.isArray(verified) ? verified : [verified]
+    if (events.length === 0) issue(warnings, "warning", file, "Frontmatter field `verified` should not be an empty list")
+    events.forEach((event, index) => validateActorEvent(event, `verified[${index}]`, file, warnings))
+  }
+
+  const status = parsed.frontmatter.status
+  if (status !== undefined && (!nonEmptyString(status) || !LIFECYCLE_STATUSES.has(status))) {
+    issue(warnings, "warning", file, "Frontmatter field `status` should be `draft`, `stable`, or `deprecated`")
+  }
+  if (parsed.frontmatter.stale_after !== undefined && !isIsoDate(parsed.frontmatter.stale_after)) {
+    issue(warnings, "warning", file, "Frontmatter field `stale_after` should be an ISO 8601 date (`YYYY-MM-DD`)")
+  }
+
+  const sources = parsed.frontmatter.sources
+  if (sources !== undefined) {
+    if (!Array.isArray(sources) || sources.length === 0) {
+      issue(warnings, "warning", file, "Frontmatter field `sources` should be a non-empty YAML list")
+    } else {
+      for (const [index, source] of sources.entries()) {
+        if (!isMapping(source) || !nonEmptyString(source.resource)) {
+          issue(warnings, "warning", file, `Frontmatter field \`sources[${index}].resource\` should be a non-empty string`)
+          continue
+        }
+        if (source.id !== undefined && !nonEmptyString(source.id)) {
+          issue(warnings, "warning", file, `Frontmatter field \`sources[${index}].id\` should be a non-empty string`)
+        }
+        if (source.author !== undefined && (!nonEmptyString(source.author) || !ACTOR_PATTERN.test(source.author))) {
+          issue(warnings, "warning", file, `Frontmatter field \`sources[${index}].author\` should use the OKF actor convention`)
+        }
+        if (source.usage_count !== undefined && (typeof source.usage_count !== "number" || source.usage_count < 0)) {
+          issue(warnings, "warning", file, `Frontmatter field \`sources[${index}].usage_count\` should be a non-negative number`)
+        }
+        if (source.last_modified !== undefined && !isIsoDate(source.last_modified)) {
+          issue(warnings, "warning", file, `Frontmatter field \`sources[${index}].last_modified\` should be an ISO 8601 date`)
+        }
+      }
+    }
+  }
+
+  const usageWindow = parsed.frontmatter.usage_window
+  if (usageWindow !== undefined && (!isMapping(usageWindow) || !isIsoDate(usageWindow.from) || !isIsoDate(usageWindow.to))) {
+    issue(warnings, "warning", file, "Frontmatter field `usage_window` should contain ISO 8601 `from` and `to` dates")
+  }
+
+  if (parsed.frontmatter.type === "Attested Computation") {
+    if (!nonEmptyString(parsed.frontmatter.runtime)) {
+      issue(errors, "error", file, "Attested Computation frontmatter must contain a non-empty string `runtime`")
+    }
+    const parameters = parsed.frontmatter.parameters
+    if (parameters !== undefined && (!Array.isArray(parameters) || parameters.some((parameter) => !isMapping(parameter) || !nonEmptyString(parameter.name) || !nonEmptyString(parameter.type) || typeof parameter.required !== "boolean"))) {
+      issue(warnings, "warning", file, "Frontmatter field `parameters` should be a list of `{ name, type, required }` mappings")
+    }
+    for (const field of ["executor", "attester"] as const) {
+      const value = parsed.frontmatter[field]
+      if (value !== undefined && (!isMapping(value) || !nonEmptyString(value.resource))) {
+        issue(warnings, "warning", file, `Frontmatter field \`${field}\` should contain a non-empty \`resource\``)
+      }
+    }
   }
 
   const resource = parsed.frontmatter.resource
   if (resource !== undefined) {
     if (!nonEmptyString(resource)) {
       issue(warnings, "warning", file, "Frontmatter field `resource` should be a non-empty URI when present")
-    } else {
+    } else if (!resource.startsWith("/") && !resource.startsWith("./") && !resource.startsWith("../")) {
       try {
         new URL(resource)
       } catch {
-        issue(warnings, "warning", file, "Frontmatter field `resource` should be a valid URI")
+        issue(warnings, "warning", file, "Frontmatter field `resource` should be a valid URI or bundle path")
       }
     }
   }
