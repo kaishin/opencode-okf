@@ -1,6 +1,6 @@
 {
   "name": "opencode-okf",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "OpenCode plugin for creating, maintaining, and validating Open Knowledge Format bundles",
   "type": "module",
   "main": "./dist/index.js",
