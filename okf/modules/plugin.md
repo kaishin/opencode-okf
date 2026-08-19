@@ -8,7 +8,7 @@ timestamp: 2026-08-10T11:02:27Z
 
 # Source
 
-`src/index.ts` — default export `OKFPlugin` satisfying `@opencode-ai/plugin` `Plugin`.
+`src/index.ts` — default and named export `OKFPlugin` satisfying `@opencode-ai/plugin` `Plugin`. These are the only runtime exports from the package root; helper functions and constants are exported from `opencode-okf/lib` instead so OpenCode's legacy loader does not treat them as plugins.
 
 # Responsibilities
 

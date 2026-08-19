@@ -71,6 +71,13 @@ Add the published plugin to `opencode.json`:
 
 Quit and restart OpenCode after changing plugin configuration. OpenCode installs npm plugins with Bun at startup.
 
+The package root only exports the plugin so it remains compatible with OpenCode's legacy plugin loader. Reusable helpers and constants are available from the `opencode-okf/lib` subpath:
+
+```ts
+import OKFPlugin from "opencode-okf"
+import { OKF_SPEC_URL, fetchOKFSpec, validateBundle } from "opencode-okf/lib"
+```
+
 For local development, build this package and reference its compiled entry point with an absolute file URL:
 
 ```json
@@ -211,8 +218,8 @@ Pushing a version tag publishes to npm via [trusted publishing](https://docs.npm
 
 ```sh
 # bump "version" in package.json first, then:
-git tag v0.6.1
-git push origin v0.6.1
+git tag v0.7.1
+git push origin v0.7.1
 ```
 
 The workflow fails if the tag does not match the `version` field in `package.json`.

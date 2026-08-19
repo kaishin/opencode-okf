@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { formatValidationReport, resolveBundlePath, validateBundle } from "../src/validator.js"
+import { formatValidationReport, resolveBundlePath, validateBundle } from "../src/lib.js"
 
 const temporaryDirectories: string[] = []
 

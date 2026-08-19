@@ -3,7 +3,7 @@ import { execFile } from "node:child_process"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { OKFPlugin } from "../src/index.js"
+import OKFPlugin from "../src/index.js"
 
 const temporaryDirectories: string[] = []
 

@@ -1,5 +1,11 @@
 # Bundle Update Log
 
+## 2026-08-20
+
+* **Fix**: Restricted the package root runtime exports to `default` and `OKFPlugin` so OpenCode's legacy loader no longer attempts to initialize helpers or `OKF_SPEC_URL` as plugins.
+* **Library API**: Moved reusable helpers and constants to the exported `opencode-okf/lib` subpath and added regression coverage for both module namespaces.
+* **Release**: Bumped the package patch version to `0.7.1`.
+
 ## 2026-08-13
 
 * **Upgrade**: Upgraded the bundle declaration and internal documentation to the fetched authoritative OKF v0.2 specification; documented `okf_spec`, `/okf-upgrade`, update-time version detection, and v0.2-aware validation.

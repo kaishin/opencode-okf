@@ -9,7 +9,7 @@ timestamp: 2026-08-03T09:47:54Z
 
 # Summary
 
-npm package `opencode-okf` (version `0.3.0` per `package.json`). MIT-licensed TypeScript library that registers OpenCode slash commands, agent tools, and hooks for OKF workflows. Canonical published package URI is the npm page; source lives at https://github.com/kaishin/opencode-okf.
+npm package `opencode-okf` (version `0.7.1` per `package.json`). MIT-licensed TypeScript library that registers OpenCode slash commands, agent tools, and hooks for OKF workflows. Canonical published package URI is the npm page; source lives at https://github.com/kaishin/opencode-okf.
 
 Authoring commands instruct the model to fetch the authoritative current OKF specification and inspect repository evidence before writing knowledge. The validator applies v0.2-aware conformance and optional-field checks so behavior does not depend on model memory.
 
@@ -18,7 +18,7 @@ Authoring commands instruct the model to fetch the authoritative current OKF spe
 | Field | Value |
 | --- | --- |
 | Name | `opencode-okf` |
-| Version | `0.3.0` |
+| Version | `0.7.1` |
 | License | MIT |
 | Engines | Node `>=20` |
 | Package manager | bun@1.3.11 |
@@ -31,11 +31,14 @@ Authoring commands instruct the model to fetch the authoritative current OKF spe
 
 `package.json` `files` field ships only `dist`, `README.md`, and `LICENSE`.
 
-Public exports from `src/index.ts`:
+The package root exports only the plugin as `default` and `OKFPlugin`, keeping the runtime namespace compatible with OpenCode's legacy loader.
 
-- default / `OKFPlugin`
+Reusable exports are available from `opencode-okf/lib` (`src/lib.ts`):
+
 - `captureSession`, `formatCaptureReport`
 - `diffSources`, `formatDiffReport`
+- `inspectProject`, `formatInspectionReport`
+- `initializeBundle`, `summarizeInit`
 - `validateBundle`, `formatValidationReport`, `resolveBundlePath`
 - `fetchOKFSpec`, `formatSpecReport`, `OKF_SPEC_URL`
 - related TypeScript types
@@ -45,6 +48,7 @@ Public exports from `src/index.ts`:
 | Path | Role |
 | --- | --- |
 | `src/index.ts` | Plugin entry, commands, tools, hooks |
+| `src/lib.ts` | Public subpath barrel for reusable helpers and constants |
 | `src/validator.ts` | OKF v0.2-aware bundle validation |
 | `src/spec.ts` | Authoritative specification fetching and version extraction |
 | `src/capture.ts` | Session capture into `log.md` |

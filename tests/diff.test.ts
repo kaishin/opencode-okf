@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
-import { diffSources, formatDiffReport } from "../src/diff.js"
+import { diffSources, formatDiffReport } from "../src/lib.js"
 
 const runGit = (cwd: string, args: string[]) => promisify(execFile)("git", args, { cwd })
 

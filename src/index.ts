@@ -536,15 +536,3 @@ export const OKFPlugin = (async ({ client, directory, worktree }, rawOptions) =>
 }) satisfies Plugin
 
 export default OKFPlugin
-export { captureSession, formatCaptureReport } from "./capture.js"
-export type { CaptureOptions, CaptureReport } from "./capture.js"
-export { diffSources, formatDiffReport } from "./diff.js"
-export type { ChangedFile, DiffOptions, DiffReport, FileStatus } from "./diff.js"
-export { formatInspectionReport, inspectProject } from "./inspect.js"
-export type { InspectionReport } from "./inspect.js"
-export { initializeBundle, summarizeInit } from "./init.js"
-export { fetchOKFSpec, formatSpecReport, OKF_SPEC_URL } from "./spec.js"
-export type { OKFSpec } from "./spec.js"
-export type { InitReport } from "./init.js"
-export { formatValidationReport, resolveBundlePath, validateBundle } from "./validator.js"
-export type { ValidationIssue, ValidationReport, ValidationSeverity } from "./validator.js"

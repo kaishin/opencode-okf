@@ -10,3 +10,4 @@
 - [x] Configurable capture moments (`captureOn.sessionIdle`, `captureOn.compacting`: off/notify/auto).
 - [x] More capture moments: `captureOn.compacted` (post-compaction) and `captureOn.todoComplete` (todo list all done).
 - [x] Evidence buffering (`captureEvidence`): inject recent tool activity into `/okf-update session` prompts.
+- [x] Keep the plugin root entry loader-safe and expose reusable helpers from `opencode-okf/lib`.

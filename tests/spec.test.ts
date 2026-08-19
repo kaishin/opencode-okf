@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { fetchOKFSpec, OKF_SPEC_URL } from "../src/spec.js"
+import { fetchOKFSpec, OKF_SPEC_URL } from "../src/lib.js"
 
 describe("fetchOKFSpec", () => {
   test("fetches the authoritative URL and extracts the version", async () => {
